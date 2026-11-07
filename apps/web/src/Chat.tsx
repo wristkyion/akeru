@@ -8,29 +8,18 @@ import {
   type Message,
   type Usage,
 } from "./api";
+import {
+  ChatSettingsPanel,
+  SETTINGS_KEY,
+  loadSettings,
+  sendableParams,
+  type ChatSettings,
+} from "./ChatSettings";
 import { DeleteDialog } from "./DeleteDialog";
 import { Formatted } from "./Markdown";
+import { MessageItem } from "./MessageItem";
 import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
-
-const SETTINGS_KEY = "akeru.chat-settings";
-const DEFAULT_TEMP = 0.8;
-
-interface ChatSettings {
-  model: string;
-  temperature: number | null; // null = model default
-  maxTokens: number | null; // null = model default
-}
-
-function loadSettings(): ChatSettings {
-  const fallback: ChatSettings = { model: "", temperature: null, maxTokens: null };
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
 
@@ -167,6 +156,9 @@ export function ChatScreen({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [streamText, setStreamText] = useState("");
+  const [working, setWorking] = useState(false);
+  // The assistant message being refreshed, shown as typing in place
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [lastText, setLastText] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -175,7 +167,7 @@ export function ChatScreen({
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const busy = pending !== null;
+  const busy = pending !== null || working || refreshingId !== null;
   const canChat = character.canChat;
   const canEdit = character.canEdit;
   const canDelete = character.canDelete;
@@ -248,10 +240,18 @@ export function ChatScreen({
     setChats(list);
   }
 
+  // The model and settings every model-backed action sends
+  function generationOptions() {
+    return {
+      model: settings.model || models[0] || "",
+      ...sendableParams(settings),
+    };
+  }
+
   async function send(text: string) {
     if (!chatId || busy || !canChat) return;
-    const model = settings.model || models[0] || "";
-    if (!model) {
+    const gen = generationOptions();
+    if (!gen.model) {
       setError("No model available. Check the provider settings on the server.");
       return;
     }
@@ -265,12 +265,7 @@ export function ChatScreen({
     try {
       await streamMessage(
         chatId,
-        {
-          content: text,
-          model,
-          temperature: settings.temperature ?? undefined,
-          maxTokens: settings.maxTokens ?? undefined,
-        },
+        { content: text, ...gen },
         (token) => setStreamText((s) => s + token),
       );
     } catch (err) {
@@ -348,6 +343,59 @@ export function ChatScreen({
     } catch (err) {
       setError(errorText(err));
     }
+  }
+
+  // Runs one action that changes messages, then reloads the chat
+  async function runWork(task: () => Promise<unknown>, typing: boolean) {
+    if (!chatId || busy) return;
+    setError("");
+    setWorking(typing);
+    try {
+      await task();
+      await refresh(chatId);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function saveEdit(m: Message, text: string, resend: boolean) {
+    if (!resend) {
+      void runWork(() => api.editMessage(m.id, text), false);
+      return;
+    }
+    const gen = generationOptions();
+    if (!gen.model) {
+      setError("No model available. Check the provider settings on the server.");
+      return;
+    }
+    void runWork(() => api.editMessage(m.id, text, { resend: true, ...gen }), true);
+  }
+
+  async function refreshReply(m: Message) {
+    if (!chatId || busy) return;
+    const gen = generationOptions();
+    if (!gen.model) {
+      setError("No model available. Check the provider settings on the server.");
+      return;
+    }
+
+    setError("");
+    setRefreshingId(m.id);
+    try {
+      await api.regenerate(m.id, gen);
+      await refresh(chatId);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setRefreshingId(null);
+    }
+  }
+
+  function deleteMessage(m: Message) {
+    if (!window.confirm("Delete this message?")) return;
+    void runWork(() => api.deleteMessage(m.id), false);
   }
 
   const usageText =
@@ -432,70 +480,7 @@ export function ChatScreen({
         </header>
 
         {showSettings && (
-          <section className="chat-settings">
-            <label className="field">
-              <span>Model</span>
-              <select
-                value={settings.model}
-                onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-              >
-                <option value="">Default ({models[0] ?? "none"})</option>
-                {models.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="field">
-              <span>
-                Temperature{" "}
-                {settings.temperature === null ? "(model default)" : settings.temperature.toFixed(2)}
-              </span>
-              <div className="row">
-                <input
-                  type="range"
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={settings.temperature ?? DEFAULT_TEMP}
-                  disabled={settings.temperature === null}
-                  onChange={(e) => setSettings({ ...settings, temperature: Number(e.target.value) })}
-                />
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={settings.temperature === null}
-                    onChange={(e) =>
-                      setSettings({ ...settings, temperature: e.target.checked ? null : DEFAULT_TEMP })
-                    }
-                  />
-                  default
-                </label>
-              </div>
-            </div>
-
-            <label className="field">
-              <span>Max reply length (tokens)</span>
-              <input
-                type="number"
-                min={1}
-                max={8192}
-                placeholder="model default"
-                value={settings.maxTokens ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSettings({
-                    ...settings,
-                    maxTokens: v === "" ? null : Math.min(8192, Math.max(1, Number(v))),
-                  });
-                }}
-              />
-            </label>
-
-            <p className="muted small">These settings are saved in this browser.</p>
-          </section>
+          <ChatSettingsPanel settings={settings} models={models} onChange={setSettings} />
         )}
 
         <main className="messages">
@@ -508,14 +493,28 @@ export function ChatScreen({
               </p>
             )}
 
-            {messages.map((m) => (
-              <MessageRow
-                key={m.id}
-                mine={m.role === "user"}
-                name={m.role === "user" ? me.displayName : character.name}
-                text={m.content}
-              />
-            ))}
+            {messages.map((m, i) => {
+              // The message being refreshed shows the typing dots where its text was
+              if (m.id === refreshingId) {
+                return <TypingRow key={m.id} name={character.name} />;
+              }
+
+              const newest = i === messages.length - 1;
+              const answersAUserMessage = i > 0 && messages[i - 1].role === "user";
+              return (
+                <MessageItem
+                  key={m.id}
+                  message={m}
+                  mine={m.role === "user"}
+                  name={m.role === "user" ? me.displayName : character.name}
+                  canRefresh={newest && m.role === "assistant" && answersAUserMessage}
+                  disabled={busy}
+                  onSave={saveEdit}
+                  onRefresh={refreshReply}
+                  onDelete={deleteMessage}
+                />
+              );
+            })}
 
             {pending && (
               <>
@@ -527,6 +526,7 @@ export function ChatScreen({
                 )}
               </>
             )}
+            {working && <TypingRow name={character.name} />}
             <div ref={endRef} />
           </div>
         </main>

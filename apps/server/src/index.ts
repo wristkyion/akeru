@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { guard } from "./guard.js";
 import { authRoutes } from "./routes/auth.js";
 import fastifyStatic from "@fastify/static";
+import { messageRoutes } from "./routes/messages.js";
 
 // apps/server/src -> project root
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -33,6 +34,7 @@ app.addHook("onRequest", guard(ctx));
 await authRoutes(app, ctx);
 await characterRoutes(app, ctx);
 await chatRoutes(app, ctx);
+await messageRoutes(app, ctx);
 await modelRoutes(app, ctx);
 
 app.get("/api/health", async () => ({

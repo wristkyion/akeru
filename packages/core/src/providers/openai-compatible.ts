@@ -34,6 +34,12 @@ export function createOpenAICompatibleProvider(
           temperature: options.temperature,
           max_tokens: options.maxTokens,
           top_p: options.topP,
+          top_k: options.topK,
+          min_p: options.minP,
+          repetition_penalty: options.repetitionPenalty,
+          frequency_penalty: options.frequencyPenalty,
+          presence_penalty: options.presencePenalty,
+          seed: options.seed,
           stream: Boolean(onToken),
         }),
       });

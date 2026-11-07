@@ -184,6 +184,19 @@ export interface CharacterInput {
   visibility?: "public" | "private";
 }
 
+// Generation settings. Only the ones the user turned on are sent.
+export interface GenParams {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  minP?: number;
+  repetitionPenalty?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
+}
+
 export const api = {
   publicConfig: () => request<{ signup: boolean }>("/api/public-config", { auth: false }),
   login: (username: string, password: string) =>
@@ -221,6 +234,18 @@ export const api = {
     request<ChatInfo>(`/api/chats/${chatId}`, { method: "PATCH", body: { title } }),
   deleteChat: (chatId: string) =>
     request<{ ok: boolean }>(`/api/chats/${chatId}`, { method: "DELETE" }),
+    editMessage: (
+      messageId: string,
+      content: string,
+      opts?: { resend?: boolean; model?: string; temperature?: number; maxTokens?: number },
+    ) => request<Message | { user: Message; reply: Message }>(`/api/messages/${messageId}`, {
+      method: "PATCH",
+      body: { content, ...opts },
+    }),
+    deleteMessage: (messageId: string) =>
+      request<{ ok: boolean }>(`/api/messages/${messageId}`, { method: "DELETE" }),
+    regenerate: (messageId: string, body: { model: string; temperature?: number; maxTokens?: number }) =>
+      request<Message>(`/api/messages/${messageId}/regenerate`, { method: "POST", body }),
 };
 
 // Streams a reply. Calls onToken for each piece as it arrives, and resolves when the

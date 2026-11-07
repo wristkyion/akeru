@@ -2,44 +2,40 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   assertCanSend,
-  createOwnedChat,
+  assertWithinLimit,
   deleteOwnChat,
   getOwnChat,
   listMessages,
   listOwnChats,
+  renameOwnChat,
   sendChatMessage,
   startOwnedChat,
-  assertWithinLimit,
-  renameOwnChat,
   type Chat,
   type User,
 } from "@chars/core";
 import type { AppContext } from "../context.js";
 import { errorText, httpError } from "../guard.js";
-
-const NewChat = z.object({
-  characterId: z.string().min(1),
-  title: z.string().optional(),
-});
+import { GenParams, toOptions } from "../params.js";
 
 const SendMessage = z.object({
   content: z.string().min(1),
   model: z.string().min(3),
-  temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().positive().optional(),
-  topP: z.number().min(0).max(1).optional(),
+  ...GenParams.shape,
 });
 
+const RenameChat = z.object({ title: z.string().max(80) });
+
 export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
+  // Chats you own with one character
   app.get<{ Params: { characterId: string } }>("/api/characters/:characterId/chats", async (req) =>
     listOwnChats(ctx.db, req.actor as User, req.params.characterId),
   );
 
+  // Start a new chat. The greeting is saved as the first message.
   app.post("/api/chats", async (req, reply) => {
-    const parsed = NewChat.safeParse(req.body);
+    const parsed = z.object({ characterId: z.string().min(1) }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const actor = req.actor as User;
     try {
       const chat = startOwnedChat(ctx.db, req.actor as User, parsed.data.characterId);
       return reply.code(201).send(chat);
@@ -48,6 +44,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
+  // Messages in one of your chats
   app.get<{ Params: { id: string } }>("/api/chats/:id/messages", async (req, reply) => {
     if (!getOwnChat(ctx.db, req.actor as User, req.params.id)) {
       return reply.code(404).send({ error: "chat not found" });
@@ -55,6 +52,25 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
     return listMessages(ctx.db, req.params.id);
   });
 
+  // Delete one of your chats and its messages
+  app.delete<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) =>
+    deleteOwnChat(ctx.db, req.actor as User, req.params.id)
+      ? { ok: true }
+      : reply.code(404).send({ error: "chat not found" }),
+  );
+
+  // Rename one of your chats. An empty title falls back to the date in the app.
+  app.patch<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) => {
+    const parsed = RenameChat.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "title must be 80 characters or fewer" });
+    try {
+      return renameOwnChat(ctx.db, req.actor as User, req.params.id, parsed.data.title);
+    } catch (err) {
+      return httpError(reply, err);
+    }
+  });
+
+  // Send a message and wait for the full reply
   app.post<{ Params: { id: string } }>("/api/chats/:id/messages", async (req, reply) => {
     const parsed = SendMessage.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
@@ -68,7 +84,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
       return httpError(reply, err);
     }
 
-    const { content, model, temperature, maxTokens, topP } = parsed.data;
+    const { content, model } = parsed.data;
     try {
       return await sendChatMessage({
         db: ctx.db,
@@ -77,7 +93,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         chatId: chat.id,
         content,
         model,
-        options: { temperature, maxTokens, topP },
+        options: toOptions(parsed.data),
         historyLimit: ctx.settings.chat.historyLimit,
         user: { name: actor.displayName, persona: actor.persona },
         actor,
@@ -91,22 +107,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
-  app.delete<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) =>
-    deleteOwnChat(ctx.db, req.actor as User, req.params.id)
-      ? { ok: true }
-      : reply.code(404).send({ error: "chat not found" }),
-  );
-  const RenameChat = z.object({ title: z.string().max(80) });
-
-  app.patch<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) => {
-    const parsed = RenameChat.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "title must be 80 characters or fewer" });
-    try {
-      return renameOwnChat(ctx.db, req.actor as User, req.params.id, parsed.data.title);
-    } catch (err) {
-      return httpError(reply, err);
-    }
-  });
+  // Send a message and stream the reply word by word (Server-Sent Events)
   app.post<{ Params: { id: string } }>("/api/chats/:id/stream", async (req, reply) => {
     const parsed = SendMessage.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
@@ -123,7 +124,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
       return httpError(reply, err);
     }
 
-    const { content, model, temperature, maxTokens, topP } = parsed.data;
+    const { content, model } = parsed.data;
 
     // From here on the response is a stream of events
     reply.hijack();
@@ -146,7 +147,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         chatId: chat.id,
         content,
         model,
-        options: { temperature, maxTokens, topP },
+        options: toOptions(parsed.data),
         historyLimit: ctx.settings.chat.historyLimit,
         user: { name: actor.displayName, persona: actor.persona },
         actor,

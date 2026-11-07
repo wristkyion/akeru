@@ -9,6 +9,12 @@ export interface GenerationOptions {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
+  topK?: number;
+  minP?: number;
+  repetitionPenalty?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
 }
 
 export interface ProviderConfig {
