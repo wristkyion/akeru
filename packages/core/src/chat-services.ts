@@ -1,6 +1,6 @@
 import { getCharacter, type Character } from "./characters.js";
 import type { DB } from "./db.js";
-import { addMessage, listMessages } from "./chats.js";
+import { addMessage, listMessages, titleFromMessage } from "./chats.js";
 import { completeWithRef, type createProviderRegistry } from "./providers/registry.js";
 import type { GenerationOptions } from "./providers/types.js";
 import type { User } from "./auth.js";
@@ -48,7 +48,6 @@ export interface SendArgs {
 }
 
 export async function sendChatMessage(args: SendArgs) {
-  // Check the limit before any model call, so a blocked message costs nothing
   if (args.actor && args.dailyLimit) assertWithinLimit(args.db, args.actor, args.dailyLimit);
 
   const character = getCharacter(args.db, args.characterId);
@@ -69,5 +68,12 @@ export async function sendChatMessage(args: SendArgs) {
 
   // Save both messages only after the model succeeds
   addMessage(args.db, args.chatId, "user", args.content);
-  return addMessage(args.db, args.chatId, "assistant", text);
+  const reply = addMessage(args.db, args.chatId, "assistant", text);
+
+  // The first message names the chat, unless it already has a title
+  args.db
+    .prepare("UPDATE chats SET title = ? WHERE id = ? AND title = ''")
+    .run(titleFromMessage(args.content), args.chatId);
+
+  return reply;
 }

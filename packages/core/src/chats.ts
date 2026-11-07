@@ -58,3 +58,8 @@ export function listMessages(db: DB, chatId: string): Message[] {
 export function deleteChat(db: DB, chatId: string): boolean {
   return db.prepare("DELETE FROM chats WHERE id = ?").run(chatId).changes > 0;
 }
+// A short single-line title from a message: at most 40 characters
+export function titleFromMessage(text: string): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length <= 40 ? clean : `${clean.slice(0, 39).trimEnd()}…`;
+}

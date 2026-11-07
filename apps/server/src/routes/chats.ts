@@ -10,6 +10,7 @@ import {
   sendChatMessage,
   startOwnedChat,
   assertWithinLimit,
+  renameOwnChat,
   type Chat,
   type User,
 } from "@chars/core";
@@ -54,12 +55,58 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
     return listMessages(ctx.db, req.params.id);
   });
 
+  app.post<{ Params: { id: string } }>("/api/chats/:id/messages", async (req, reply) => {
+    const parsed = SendMessage.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+
+    const actor = req.actor as User;
+    let chat: Chat;
+    try {
+      // Checks that the chat is yours and the character is still available to you
+      chat = assertCanSend(ctx.db, actor, req.params.id);
+    } catch (err) {
+      return httpError(reply, err);
+    }
+
+    const { content, model, temperature, maxTokens, topP } = parsed.data;
+    try {
+      return await sendChatMessage({
+        db: ctx.db,
+        registry: ctx.registry,
+        characterId: chat.characterId,
+        chatId: chat.id,
+        content,
+        model,
+        options: { temperature, maxTokens, topP },
+        historyLimit: ctx.settings.chat.historyLimit,
+        user: { name: actor.displayName, persona: actor.persona },
+        actor,
+        dailyLimit: ctx.settings.limits.dailyMessages,
+      });
+    } catch (err) {
+      const message = errorText(err);
+      if (/daily limit/.test(message)) return reply.code(429).send({ error: message });
+      // A failed model call is a server-side problem, so it returns 502
+      return reply.code(502).send({ error: message });
+    }
+  });
+
   app.delete<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) =>
     deleteOwnChat(ctx.db, req.actor as User, req.params.id)
       ? { ok: true }
       : reply.code(404).send({ error: "chat not found" }),
   );
+  const RenameChat = z.object({ title: z.string().max(80) });
 
+  app.patch<{ Params: { id: string } }>("/api/chats/:id", async (req, reply) => {
+    const parsed = RenameChat.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "title must be 80 characters or fewer" });
+    try {
+      return renameOwnChat(ctx.db, req.actor as User, req.params.id, parsed.data.title);
+    } catch (err) {
+      return httpError(reply, err);
+    }
+  });
   app.post<{ Params: { id: string } }>("/api/chats/:id/stream", async (req, reply) => {
     const parsed = SendMessage.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });

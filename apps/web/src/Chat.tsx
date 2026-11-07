@@ -10,7 +10,7 @@ import {
 } from "./api";
 import { DeleteDialog } from "./DeleteDialog";
 import { Formatted } from "./Markdown";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
 
 const SETTINGS_KEY = "akeru.chat-settings";
@@ -33,13 +33,6 @@ function loadSettings(): ChatSettings {
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
-
-function chatLabel(c: ChatInfo): string {
-  const d = new Date(c.updatedAt);
-  const day = d.toLocaleDateString([], { month: "short", day: "numeric" });
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return `${day}, ${time}`;
-}
 
 function SendIcon() {
   return (
@@ -196,7 +189,10 @@ export function ChatScreen({
     (async () => {
       try {
         let list = await api.chats(character.id);
-        if (list.length === 0 && canChat) list = [await api.createChat(character.id)];
+        if (list.length === 0 && canChat) {
+          await api.createChat(character.id);
+          list = await api.chats(character.id);
+        }
         setChats(list);
         setChatId(list[0]?.id ?? null);
       } catch (err) {
@@ -240,10 +236,16 @@ export function ChatScreen({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [draft]);
 
+  // Reloads messages, usage, and the chat list, so titles and order stay current
   async function refresh(id: string) {
-    const [msgs, u] = await Promise.all([api.messages(id), api.usage()]);
+    const [msgs, u, list] = await Promise.all([
+      api.messages(id),
+      api.usage(),
+      api.chats(character.id),
+    ]);
     setMessages(msgs);
     setUsage(u);
+    setChats(list);
   }
 
   async function send(text: string) {
@@ -302,11 +304,47 @@ export function ChatScreen({
   }
 
   async function newChat() {
+    if (busy) return;
     setError("");
     try {
       const c = await api.createChat(character.id);
       setChats(await api.chats(character.id));
       setChatId(c.id);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  function pickChat(id: string) {
+    // Switching mid-reply would show the wrong conversation, so wait until it finishes
+    if (!busy) setChatId(id);
+  }
+
+  async function renameChatItem(c: ChatInfo) {
+    const next = window.prompt("Rename this chat (leave empty to use the date)", c.title);
+    if (next === null) return;
+    setError("");
+    try {
+      await api.renameChat(c.id, next);
+      setChats(await api.chats(character.id));
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  async function deleteChatItem(c: ChatInfo) {
+    if (!window.confirm(`Delete "${chatTitle(c)}"? Its messages are removed for good.`)) return;
+    setError("");
+    try {
+      await api.deleteChat(c.id);
+      let remaining = await api.chats(character.id);
+      // Deleting the last chat starts a fresh one, so the chat screen is never empty
+      if (remaining.length === 0 && canChat) {
+        await api.createChat(character.id);
+        remaining = await api.chats(character.id);
+      }
+      setChats(remaining);
+      if (c.id === chatId) setChatId(remaining[0]?.id ?? null);
     } catch (err) {
       setError(errorText(err));
     }
@@ -325,6 +363,14 @@ export function ChatScreen({
         me={me}
         activeId={character.id}
         revision={revision}
+        chatPanel={{
+          chats,
+          activeChatId: chatId,
+          onPick: pickChat,
+          onNew: newChat,
+          onRename: renameChatItem,
+          onDelete: deleteChatItem,
+        }}
         onHome={onHome}
         onOpen={onOpen}
         onCreate={onCreate}
@@ -342,16 +388,17 @@ export function ChatScreen({
             <span className="muted small">By @{character.ownerName ?? "unknown"}</span>
           </div>
           <div className="head-actions">
+            {/* Phones hide the sidebar, so the chat picker lives here on small screens */}
             {chats.length > 1 && (
               <select
-                className="chat-select"
+                className="chat-select mobile-only"
                 value={chatId ?? ""}
-                onChange={(e) => setChatId(e.target.value)}
+                onChange={(e) => pickChat(e.target.value)}
                 disabled={busy}
               >
                 {chats.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {chatLabel(c)}
+                    {chatTitle(c)}
                   </option>
                 ))}
               </select>
@@ -530,7 +577,3 @@ export function ChatScreen({
     </div>
   );
 }
-cd D:\data\docs\project\akeru
-git add -A
-git commit -m "Change password from the web app, forced change after admin reset"
-git push

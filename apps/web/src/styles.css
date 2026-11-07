@@ -328,3 +328,37 @@ h1, h2, h3, p { margin: 0; }
 }
 .bubble em { font-style: italic; color: #c7c7d1; }
 .bubble strong { font-weight: 700; }
+/* Chats listed under the selected character in the sidebar */
+.sub-list {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 2px 0 8px 14px; padding-left: 10px;
+  border-left: 1px solid var(--border);
+  max-height: 40vh; overflow-y: auto;
+}
+.sub-new {
+  background: none; border: 0; color: var(--muted);
+  text-align: left; padding: 6px 8px; border-radius: 8px; font-size: 13px;
+}
+.sub-new:hover { color: var(--text); background: var(--hover); }
+.sub-item { display: flex; align-items: center; gap: 2px; border-radius: 8px; }
+.sub-item:hover { background: var(--hover); }
+.sub-item.active { background: var(--panel); }
+.sub-title {
+  flex: 1; min-width: 0; background: none; border: 0; text-align: left;
+  padding: 6px 8px; font-size: 13px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sub-item.active .sub-title { color: var(--text); }
+.sub-act {
+  background: none; border: 0; color: var(--muted);
+  padding: 4px 6px; font-size: 12px; opacity: 0.5;
+}
+.sub-item:hover .sub-act, .sub-item.active .sub-act { opacity: 1; }
+.sub-act:hover { color: var(--text); }
+
+/* The header chat picker only shows on phones, where the sidebar is hidden */
+.mobile-only { display: none; }
+
+@media (max-width: 720px) {
+  .mobile-only { display: inline-block; }
+}

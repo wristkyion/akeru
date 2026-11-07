@@ -77,6 +77,19 @@ const MIGRATIONS: string[] = [
   `
     ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;
   `,
+  // 5: name existing chats after their first message
+  `
+    UPDATE chats
+    SET title = (
+      SELECT substr(replace(trim(m.content), char(10), ' '), 1, 40)
+      FROM messages m
+      WHERE m.chat_id = chats.id AND m.role = 'user'
+      ORDER BY m.created_at
+      LIMIT 1
+    )
+    WHERE title = ''
+      AND EXISTS (SELECT 1 FROM messages m2 WHERE m2.chat_id = chats.id AND m2.role = 'user');
+  `,
 ];
 
 function runMigrations(db: DB): void {

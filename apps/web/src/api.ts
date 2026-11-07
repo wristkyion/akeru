@@ -63,7 +63,7 @@ export function setUnauthorizedHandler(handler: () => void): void {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean; // default true; login is the only call that sends no token
 }
@@ -217,6 +217,10 @@ export const api = {
   send: (chatId: string, body: { content: string; model: string; temperature?: number; maxTokens?: number }) =>
     request<Message>(`/api/chats/${chatId}/messages`, { method: "POST", body }),
   models: () => request<ModelGroup[]>("/api/models"),
+  renameChat: (chatId: string, title: string) =>
+    request<ChatInfo>(`/api/chats/${chatId}`, { method: "PATCH", body: { title } }),
+  deleteChat: (chatId: string) =>
+    request<{ ok: boolean }>(`/api/chats/${chatId}`, { method: "DELETE" }),
 };
 
 // Streams a reply. Calls onToken for each piece as it arrives, and resolves when the

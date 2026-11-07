@@ -224,3 +224,11 @@ export function startOwnedChat(db: DB, user: User, characterId: string): Chat {
   }
   return chat;
 }
+
+// Only the owner can rename. An empty title falls back to the date in the app.
+export function renameOwnChat(db: DB, user: User, chatId: string, title: string): Chat {
+  if (!getOwnChat(db, user, chatId)) throw new Error("chat not found");
+  const clean = title.trim().replace(/\s+/g, " ").slice(0, 80);
+  db.prepare("UPDATE chats SET title = ? WHERE id = ?").run(clean, chatId);
+  return getOwnChat(db, user, chatId)!;
+}
