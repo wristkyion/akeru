@@ -35,6 +35,13 @@ const SettingsSchema = z.object({
       persona: z.string().default(""),
     })
     .default({}),
+  auth: z
+    .object({
+      // "open": anyone who can reach the server can create an account
+      // "closed": only the admin can create accounts (CLI)
+      signup: z.enum(["open", "closed"]).default("closed"),
+    })
+    .default({}),
   providers: z
     .array(
       z.object({

@@ -164,3 +164,20 @@ export function updateUserProfile(
   ).run(patch.displayName ?? null, patch.persona ?? null, user.id);
   return getUserByUsername(db, username)!;
 }
+
+const RESERVED_USERNAMES = new Set(["admin", "root", "system", "akeru", "support"]);
+
+// Self-service sign-up. Always creates a regular user, never an admin.
+export function signUp(
+  db: DB,
+  input: { username: string; password: string; displayName?: string },
+): User {
+  const username = normalizeUsername(input.username);
+  if (RESERVED_USERNAMES.has(username)) throw new Error("that username is reserved");
+  return createUser(db, {
+    username,
+    password: input.password,
+    role: "user",
+    displayName: input.displayName?.trim() || username,
+  });
+}

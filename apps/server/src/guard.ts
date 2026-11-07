@@ -10,7 +10,7 @@ declare module "fastify" {
   }
 }
 
-const PUBLIC_ROUTES = new Set(["/api/health", "/api/login"]);
+const PUBLIC_ROUTES = new Set(["/api/health", "/api/login", "/api/signup", "/api/public-config"]);
 
 // Every /api route needs a valid session token, except the public ones above
 export function guard(ctx: AppContext) {
