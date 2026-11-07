@@ -4,6 +4,7 @@ import { ChatScreen } from "./Chat";
 import { CharacterForm } from "./CharacterForm";
 import { Home } from "./Home";
 import { LoginScreen } from "./LoginScreen";
+import { PasswordForm } from "./PasswordForm";
 
 type Screen =
   | { kind: "home" }
@@ -17,11 +18,14 @@ export default function App() {
   const [checking, setChecking] = useState(true);
   // Bumped after a save or delete, so the home list and sidebar reload
   const [revision, setRevision] = useState(0);
+  // Opened from the sidebar by a user who wants to change their own password
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setMe(null);
       setScreen({ kind: "home" });
+      setShowPassword(false);
     });
 
     if (!tokenStore.get()) {
@@ -47,14 +51,36 @@ export default function App() {
     tokenStore.clear();
     setMe(null);
     setScreen({ kind: "home" });
+    setShowPassword(false);
   };
 
   const home = () => setScreen({ kind: "home" });
   const openChat = (c: CharacterView) => setScreen({ kind: "chat", character: c });
   const openCreate = () => setScreen({ kind: "create" });
+  const openPassword = () => setShowPassword(true);
 
   if (checking) return <div className="splash">Loading…</div>;
   if (!me) return <LoginScreen onLoggedIn={setMe} />;
+
+  // An admin reset means the user must pick a new password before using the app
+  if (me.mustChangePassword) {
+    return (
+      <PasswordForm
+        forced
+        onDone={() => setMe({ ...me, mustChangePassword: false })}
+      />
+    );
+  }
+
+  if (showPassword) {
+    return (
+      <PasswordForm
+        forced={false}
+        onDone={() => setShowPassword(false)}
+        onCancel={() => setShowPassword(false)}
+      />
+    );
+  }
 
   if (screen.kind === "create" || screen.kind === "edit") {
     const existing = screen.kind === "edit" ? screen.character : undefined;
@@ -91,6 +117,7 @@ export default function App() {
           home();
         }}
         onLogout={logout}
+        onChangePassword={openPassword}
       />
     );
   }
@@ -102,6 +129,7 @@ export default function App() {
       onOpen={openChat}
       onCreate={openCreate}
       onLogout={logout}
+      onChangePassword={openPassword}
     />
   );
 }

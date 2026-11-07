@@ -10,9 +10,19 @@ interface SidebarProps {
   onOpen: (c: CharacterView) => void;
   onCreate: () => void;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-export function Sidebar({ me, activeId, revision, onHome, onOpen, onCreate, onLogout }: SidebarProps) {
+export function Sidebar({
+  me,
+  activeId,
+  revision,
+  onHome,
+  onOpen,
+  onCreate,
+  onLogout,
+  onChangePassword,
+}: SidebarProps) {
   const [characters, setCharacters] = useState<CharacterView[]>([]);
 
   useEffect(() => {
@@ -60,6 +70,9 @@ export function Sidebar({ me, activeId, revision, onHome, onOpen, onCreate, onLo
           <strong>{me.displayName}</strong>
           <span>{me.role === "admin" ? "Admin" : `@${me.username}`}</span>
         </div>
+        <button className="btn-ghost" onClick={onChangePassword}>
+          Password
+        </button>
         <button className="btn-ghost" onClick={onLogout}>
           Log out
         </button>

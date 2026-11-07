@@ -10,6 +10,7 @@ export interface User {
   persona: string;
   role: UserRole;
   disabled: boolean;
+  mustChangePassword: boolean;
   createdAt: number;
 }
 
@@ -28,6 +29,7 @@ type Row = {
   persona: string;
   role: UserRole;
   disabled: number;
+  must_change_password: number;
   created_at: number;
 };
 
@@ -40,6 +42,7 @@ const toUser = (r: Row): User => ({
   persona: r.persona,
   role: r.role,
   disabled: r.disabled === 1,
+  mustChangePassword: r.must_change_password === 1,
   createdAt: r.created_at,
 });
 
@@ -144,12 +147,20 @@ export function setUserDisabled(db: DB, username: string, disabled: boolean): Us
   return getUserByUsername(db, username)!;
 }
 
+// Admin reset: sets a temporary password and requires a change at next login
 export function setUserPassword(db: DB, username: string, password: string): User {
   validatePassword(password);
   const user = getUserByUsername(db, username);
   if (!user) throw new Error(`no user "${username}"`);
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(password), user.id);
-  return user;
+  db.transaction(() => {
+    db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?").run(
+      hashPassword(password),
+      user.id,
+    );
+    // Sign the account out everywhere, so the old password can't keep a session alive
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
+  })();
+  return getUserByUsername(db, username)!;
 }
 
 export function updateUserProfile(
@@ -180,4 +191,37 @@ export function signUp(
     role: "user",
     displayName: input.displayName?.trim() || username,
   });
+}
+
+// The user changes their own password. Requires the current password.
+// Clears the forced-change flag and signs out every other device.
+export function changeOwnPassword(
+  db: DB,
+  user: User,
+  current: string,
+  next: string,
+  keepSessionId?: string,
+): User {
+  validatePassword(next);
+  const row = db
+    .prepare("SELECT password_hash FROM users WHERE id = ?")
+    .get(user.id) as { password_hash: string } | undefined;
+  if (!row || !verifyPassword(current, row.password_hash)) {
+    throw new Error("current password is wrong");
+  }
+  if (current === next) throw new Error("choose a different password");
+
+  db.transaction(() => {
+    db.prepare("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?").run(
+      hashPassword(next),
+      user.id,
+    );
+    // Keep this device signed in, and end every other session
+    db.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?").run(
+      user.id,
+      keepSessionId ?? "",
+    );
+  })();
+
+  return getUser(db, user.id)!;
 }

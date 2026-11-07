@@ -7,6 +7,7 @@ export interface Me {
   persona: string;
   role: "admin" | "user";
   disabled: boolean;
+  mustChangePassword: boolean;
   createdAt: number;
 }
 
@@ -199,6 +200,8 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>("/api/logout", { method: "POST", body: {} }),
   me: () => request<Me>("/api/me"),
+  changePassword: (current: string, next: string) =>
+    request<{ ok: boolean }>("/api/me/password", { method: "POST", body: { current, next } }),
   usage: () => request<Usage>("/api/me/usage"),
   characters: () => request<CharacterView[]>("/api/characters"),
   createCharacter: (input: CharacterInput) =>

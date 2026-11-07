@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type CharacterView, type Me } from "./api";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
@@ -9,6 +9,7 @@ interface HomeProps {
   onOpen: (c: CharacterView) => void;
   onCreate: () => void;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
 function CharacterCard({
@@ -73,7 +74,7 @@ function Section({
   emptyText: string;
   meId: string;
   onOpen: (c: CharacterView) => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section>
@@ -94,7 +95,7 @@ function Section({
   );
 }
 
-export function Home({ me, revision, onOpen, onCreate, onLogout }: HomeProps) {
+export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePassword }: HomeProps) {
   const [characters, setCharacters] = useState<CharacterView[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -135,6 +136,7 @@ export function Home({ me, revision, onOpen, onCreate, onLogout }: HomeProps) {
         onOpen={onOpen}
         onCreate={onCreate}
         onLogout={onLogout}
+        onChangePassword={onChangePassword}
       />
 
       <main className="main">

@@ -1,6 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { LoginLimiter, authenticate, createSession, getUsage, revokeSession, signUp, type User } from "@chars/core";
+import {
+  LoginLimiter,
+  authenticate,
+  changeOwnPassword,
+  createSession,
+  getUsage,
+  revokeSession,
+  signUp,
+  type User,
+} from "@chars/core";
 import type { AppContext } from "../context.js";
 
 const LoginBody = z.object({
@@ -64,6 +73,31 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   app.get("/api/me", async (req) => req.actor);
+
+  const PasswordBody = z.object({
+    current: z.string().min(1).max(256),
+    next: z.string().min(8).max(256),
+  });
+
+  app.post("/api/me/password", async (req, reply) => {
+    const parsed = PasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "enter your current password and a new one of at least 8 characters" });
+    }
+    try {
+      const user = changeOwnPassword(
+        ctx.db,
+        req.actor as User,
+        parsed.data.current,
+        parsed.data.next,
+        req.sessionId,
+      );
+      return { ok: true, user };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return reply.code(400).send({ error: message });
+    }
+  });
 
   app.get("/api/me/usage", async (req) =>
     getUsage(ctx.db, req.actor as User, ctx.settings.limits.dailyMessages),

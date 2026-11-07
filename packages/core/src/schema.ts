@@ -73,6 +73,10 @@ const MIGRATIONS: string[] = [
     ALTER TABLE characters ADD COLUMN definition TEXT NOT NULL DEFAULT '';
     ALTER TABLE characters ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
   `,
+  // 4: force a password change at next login (set when an admin resets a password)
+  `
+    ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function runMigrations(db: DB): void {

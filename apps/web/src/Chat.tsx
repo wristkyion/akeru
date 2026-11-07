@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { api, streamMessage, type CharacterView, type ChatInfo, type Me, type Message, type Usage } from "./api";
+import {
+  api,
+  streamMessage,
+  type CharacterView,
+  type ChatInfo,
+  type Me,
+  type Message,
+  type Usage,
+} from "./api";
 import { DeleteDialog } from "./DeleteDialog";
+import { Formatted } from "./Markdown";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
-import { Formatted } from "./Markdown";
 
 const SETTINGS_KEY = "akeru.chat-settings";
 const DEFAULT_TEMP = 0.8;
@@ -91,6 +99,26 @@ function MessageRow({
   );
 }
 
+function StreamingRow({ name, text }: { name: string; text: string }) {
+  return (
+    <div className="msg">
+      <span className="avatar msg-avatar" style={avatarStyle(name)}>
+        {initials(name)}
+      </span>
+      <div className="msg-body">
+        <div className="msg-name">
+          <span>{name}</span>
+          <span className="badge">AI</span>
+        </div>
+        <div className="bubble">
+          <Formatted text={text} />
+          <span className="caret" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TypingRow({ name }: { name: string }) {
   return (
     <div className="msg">
@@ -112,26 +140,6 @@ function TypingRow({ name }: { name: string }) {
   );
 }
 
-function StreamingRow({ name, text }: { name: string; text: string }) {
-  return (
-    <div className="msg">
-      <span className="avatar msg-avatar" style={avatarStyle(name)}>
-        {initials(name)}
-      </span>
-      <div className="msg-body">
-        <div className="msg-name">
-          <span>{name}</span>
-          <span className="badge">AI</span>
-        </div>
-        <div className="bubble">
-          <Formatted text={text} />
-          <span className="caret" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ChatScreen({
   me,
   character,
@@ -142,6 +150,7 @@ export function ChatScreen({
   onEdit,
   onDeleted,
   onLogout,
+  onChangePassword,
 }: {
   me: Me;
   character: CharacterView;
@@ -152,6 +161,7 @@ export function ChatScreen({
   onEdit: (c: CharacterView) => void;
   onDeleted: () => void;
   onLogout: () => void;
+  onChangePassword: () => void;
 }) {
   const [chats, setChats] = useState<ChatInfo[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
@@ -319,6 +329,7 @@ export function ChatScreen({
         onOpen={onOpen}
         onCreate={onCreate}
         onLogout={onLogout}
+        onChangePassword={onChangePassword}
       />
 
       <section className="chat-main">
@@ -354,7 +365,11 @@ export function ChatScreen({
               </button>
             )}
             {canDelete && (
-              <button className="pill-btn danger-text" onClick={() => setShowDelete(true)} disabled={busy}>
+              <button
+                className="pill-btn danger-text"
+                onClick={() => setShowDelete(true)}
+                disabled={busy}
+              >
                 Delete
               </button>
             )}
@@ -492,7 +507,12 @@ export function ChatScreen({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
             />
-            <button className="send-btn" onClick={submit} disabled={!canChat || busy || !draft.trim()} aria-label="Send">
+            <button
+              className="send-btn"
+              onClick={submit}
+              disabled={!canChat || busy || !draft.trim()}
+              aria-label="Send"
+            >
               <SendIcon />
             </button>
           </div>
@@ -510,3 +530,7 @@ export function ChatScreen({
     </div>
   );
 }
+cd D:\data\docs\project\akeru
+git add -A
+git commit -m "Change password from the web app, forced change after admin reset"
+git push
