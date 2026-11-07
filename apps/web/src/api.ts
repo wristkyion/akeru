@@ -215,3 +215,76 @@ export const api = {
     request<Message>(`/api/chats/${chatId}/messages`, { method: "POST", body }),
   models: () => request<ModelGroup[]>("/api/models"),
 };
+
+// Streams a reply. Calls onToken for each piece as it arrives, and resolves when the
+// full message has been saved on the server.
+export async function streamMessage(
+  chatId: string,
+  body: { content: string; model: string; temperature?: number; maxTokens?: number },
+  onToken: (text: string) => void,
+): Promise<void> {
+  const token = tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch(`/api/chats/${chatId}/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError("Can't reach the server. Is it running?", 0);
+  }
+
+  if (!res.ok) {
+    const data = safeJson(await res.text());
+    if (res.status === 401) {
+      tokenStore.clear();
+      unauthorizedHandler?.();
+    }
+    const retry = Number(res.headers.get("Retry-After"));
+    throw new ApiError(
+      extractError(data) ?? `Request failed (${res.status})`,
+      res.status,
+      Number.isFinite(retry) && retry > 0 ? retry : null,
+    );
+  }
+
+  if (!res.body) throw new ApiError("The server sent no reply.", 0);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let saved: Message | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Events are separated by a blank line
+    let sep = buffer.indexOf("\n\n");
+    while (sep !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      sep = buffer.indexOf("\n\n");
+
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+
+      const payload = JSON.parse(data);
+      if (event === "token") onToken(payload.text);
+      else if (event === "done") saved = payload as Message;
+      else if (event === "error") throw new ApiError(payload.error, 502);
+    }
+  }
+
+  if (!saved) throw new ApiError("The reply was cut off. Your message was not saved.", 0);
+}

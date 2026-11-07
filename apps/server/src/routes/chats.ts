@@ -9,6 +9,7 @@ import {
   listOwnChats,
   sendChatMessage,
   startOwnedChat,
+  assertWithinLimit,
   type Chat,
   type User,
 } from "@chars/core";
@@ -59,22 +60,39 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
       : reply.code(404).send({ error: "chat not found" }),
   );
 
-  app.post<{ Params: { id: string } }>("/api/chats/:id/messages", async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/api/chats/:id/stream", async (req, reply) => {
     const parsed = SendMessage.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
     const actor = req.actor as User;
     let chat: Chat;
     try {
-      // Checks that the chat is yours and the character is still available to you
+      // Checks run before the stream starts, so errors still come back as normal HTTP codes
       chat = assertCanSend(ctx.db, actor, req.params.id);
+      assertWithinLimit(ctx.db, actor, ctx.settings.limits.dailyMessages);
     } catch (err) {
+      const message = errorText(err);
+      if (/daily limit/.test(message)) return reply.code(429).send({ error: message });
       return httpError(reply, err);
     }
 
     const { content, model, temperature, maxTokens, topP } = parsed.data;
+
+    // From here on the response is a stream of events
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    const sendEvent = (event: string, data: unknown) => {
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
     try {
-      return await sendChatMessage({
+      const saved = await sendChatMessage({
         db: ctx.db,
         registry: ctx.registry,
         characterId: chat.characterId,
@@ -86,12 +104,14 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         user: { name: actor.displayName, persona: actor.persona },
         actor,
         dailyLimit: ctx.settings.limits.dailyMessages,
+        onToken: (token) => sendEvent("token", { text: token }),
       });
+      sendEvent("done", saved);
     } catch (err) {
-      const message = errorText(err);
-      if (/daily limit/.test(message)) return reply.code(429).send({ error: message });
-      // A failed model call is a server-side problem, so it returns 502
-      return reply.code(502).send({ error: message });
+      // Nothing is saved when the model fails partway, matching the normal route
+      sendEvent("error", { error: errorText(err) });
+    } finally {
+      reply.raw.end();
     }
   });
 }

@@ -29,7 +29,8 @@ export function completeWithRef(
   ref: string,
   messages: ChatMessage[],
   options?: GenerationOptions,
+  onToken?: (token: string) => void,
 ): Promise<string> {
   const { providerId, modelId } = parseModelRef(ref);
-  return registry.get(providerId).complete(messages, modelId, options);
+  return registry.get(providerId).complete(messages, modelId, options, onToken);
 }

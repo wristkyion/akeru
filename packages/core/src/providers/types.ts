@@ -20,5 +20,10 @@ export interface ProviderConfig {
 
 export interface ChatProvider {
   id: string;
-  complete(messages: ChatMessage[], model: string, options?: GenerationOptions): Promise<string>;
+  complete(
+    messages: ChatMessage[],
+    model: string,
+    options?: GenerationOptions,
+    onToken?: (token: string) => void,
+  ): Promise<string>;
 }

@@ -318,3 +318,13 @@ h1, h2, h3, p { margin: 0; }
 .tag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .tag-row.full { grid-column: 1 / -1; margin: -6px 0 10px; }
 .hint.full { grid-column: 1 / -1; }
+.caret {
+  display: inline-block; width: 2px; height: 1em; margin-left: 2px;
+  background: currentColor; vertical-align: text-bottom;
+  animation: caret-blink 1s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+.bubble em { font-style: italic; color: #c7c7d1; }
+.bubble strong { font-weight: 700; }

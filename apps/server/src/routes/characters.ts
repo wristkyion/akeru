@@ -13,10 +13,10 @@ import { httpError } from "../guard.js";
 
 const CharacterInput = z.object({
   name: z.string().min(1).max(60),
-  description: z.string().max(500).optional(),
-  definition: z.string().max(4000).optional(),
-  personality: z.string().max(2000).optional(),
-  greeting: z.string().max(500).optional(),
+  description: z.string().max(1000).optional(),
+  definition: z.string().max(32000).optional(),
+  personality: z.string().max(32000).optional(),
+  greeting: z.string().max(5000).optional(),
   tags: z.array(z.string().max(24)).max(10).optional(),
   visibility: z.enum(["public", "private"]).optional(),
 });

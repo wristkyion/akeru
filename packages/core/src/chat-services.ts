@@ -44,6 +44,7 @@ export interface SendArgs {
   user?: UserProfile;
   actor?: User;        // when set, the daily limit applies to this account
   dailyLimit?: number; // 0 or undefined means no limit
+  onToken?: (token: string) => void;
 }
 
 export async function sendChatMessage(args: SendArgs) {
@@ -64,7 +65,7 @@ export async function sendChatMessage(args: SendArgs) {
     { role: "user" as const, content: args.content },
   ];
 
-  const text = await completeWithRef(args.registry, args.model, messages, args.options);
+  const text = await completeWithRef(args.registry, args.model, messages, args.options, args.onToken);
 
   // Save both messages only after the model succeeds
   addMessage(args.db, args.chatId, "user", args.content);

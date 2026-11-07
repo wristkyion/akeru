@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { api, type CharacterView, type ChatInfo, type Me, type Message, type Usage } from "./api";
+import { api, streamMessage, type CharacterView, type ChatInfo, type Me, type Message, type Usage } from "./api";
 import { DeleteDialog } from "./DeleteDialog";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
+import { Formatted } from "./Markdown";
 
 const SETTINGS_KEY = "akeru.chat-settings";
 const DEFAULT_TEMP = 0.8;
@@ -82,7 +83,9 @@ function MessageRow({
             </>
           )}
         </div>
-        <div className="bubble">{text}</div>
+        <div className="bubble">
+          <Formatted text={text} />
+        </div>
       </div>
     </div>
   );
@@ -103,6 +106,26 @@ function TypingRow({ name }: { name: string }) {
           <span />
           <span />
           <span />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StreamingRow({ name, text }: { name: string; text: string }) {
+  return (
+    <div className="msg">
+      <span className="avatar msg-avatar" style={avatarStyle(name)}>
+        {initials(name)}
+      </span>
+      <div className="msg-body">
+        <div className="msg-name">
+          <span>{name}</span>
+          <span className="badge">AI</span>
+        </div>
+        <div className="bubble">
+          <Formatted text={text} />
+          <span className="caret" />
         </div>
       </div>
     </div>
@@ -140,6 +163,7 @@ export function ChatScreen({
   const [showDelete, setShowDelete] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const [streamText, setStreamText] = useState("");
   const [lastText, setLastText] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -189,7 +213,7 @@ export function ChatScreen({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, pending]);
+  }, [messages, pending, streamText]);
 
   useEffect(() => {
     try {
@@ -223,18 +247,25 @@ export function ChatScreen({
     setError("");
     setLastText(text);
     setDraft("");
+    setStreamText("");
     setPending(text);
 
     try {
-      await api.send(chatId, {
-        content: text,
-        model,
-        temperature: settings.temperature ?? undefined,
-        maxTokens: settings.maxTokens ?? undefined,
-      });
+      await streamMessage(
+        chatId,
+        {
+          content: text,
+          model,
+          temperature: settings.temperature ?? undefined,
+          maxTokens: settings.maxTokens ?? undefined,
+        },
+        (token) => setStreamText((s) => s + token),
+      );
     } catch (err) {
+      // Nothing was saved. Put the text back so it can be sent again
       setDraft(text);
       setError(errorText(err));
+      setStreamText("");
       setPending(null);
       return;
     }
@@ -244,6 +275,7 @@ export function ChatScreen({
     } catch (err) {
       setError(errorText(err));
     }
+    setStreamText("");
     setPending(null);
   }
 
@@ -426,7 +458,11 @@ export function ChatScreen({
             {pending && (
               <>
                 <MessageRow mine name={me.displayName} text={pending} sending />
-                <TypingRow name={character.name} />
+                {streamText ? (
+                  <StreamingRow name={character.name} text={streamText} />
+                ) : (
+                  <TypingRow name={character.name} />
+                )}
               </>
             )}
             <div ref={endRef} />

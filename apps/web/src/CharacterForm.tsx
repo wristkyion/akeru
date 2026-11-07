@@ -119,7 +119,7 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
           <span>Description</span>
           <textarea
             rows={2}
-            maxLength={500}
+            maxLength={1000}
             placeholder="A short blurb shown on the card."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -130,7 +130,7 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
           <span>Definition</span>
           <textarea
             rows={6}
-            maxLength={4000}
+            maxLength={32000}
             placeholder="Background, appearance, how they know you, and example lines of dialogue. The model reads this in every message."
             value={definition}
             onChange={(e) => setDefinition(e.target.value)}
@@ -141,7 +141,7 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
           <span>Personality</span>
           <textarea
             rows={3}
-            maxLength={2000}
+            maxLength={32000}
             placeholder="How they talk and act, e.g. calm, dry humor, short sentences."
             value={personality}
             onChange={(e) => setPersonality(e.target.value)}
@@ -152,7 +152,7 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
           <span>Greeting</span>
           <textarea
             rows={2}
-            maxLength={500}
+            maxLength={5000}
             placeholder="The first message people see when they start a chat."
             value={greeting}
             onChange={(e) => setGreeting(e.target.value)}
