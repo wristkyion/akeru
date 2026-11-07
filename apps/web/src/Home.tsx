@@ -1,25 +1,12 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type CharacterView, type Me } from "./api";
+import { Sidebar } from "./Sidebar";
+import { avatarStyle, initials } from "./ui";
 
 interface HomeProps {
   me: Me;
-  onLogout: () => void;
   onOpen: (c: CharacterView) => void;
-}
-
-// Colors come from the name, so each character keeps the same avatar color
-function avatarStyle(name: string): CSSProperties {
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return {
-    background: `linear-gradient(135deg, hsl(${h} 60% 46%), hsl(${(h + 40) % 360} 65% 34%))`,
-  };
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const letters = (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
-  return (letters || name.trim().slice(0, 2)).toUpperCase() || "?";
+  onLogout: () => void;
 }
 
 function CharacterCard({
@@ -42,9 +29,9 @@ function CharacterCard({
         if (e.key === "Enter") onOpen(c);
       }}
     >
-      <div className="avatar" style={avatarStyle(c.name)}>
+      <span className="avatar" style={avatarStyle(c.name)}>
         {initials(c.name)}
-      </div>
+      </span>
       <div className="card-body">
         <h3>{c.name}</h3>
         <p>{c.description || "No description yet."}</p>
@@ -91,7 +78,7 @@ function Section({
   );
 }
 
-export function Home({ me, onLogout, onOpen }: HomeProps) {
+export function Home({ me, onOpen, onLogout }: HomeProps) {
   const [characters, setCharacters] = useState<CharacterView[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -108,8 +95,7 @@ export function Home({ me, onLogout, onOpen }: HomeProps) {
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (characters ?? []).filter(
-      (c) =>
-        !q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
+      (c) => !q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
     );
   }, [characters, query]);
 
@@ -117,33 +103,8 @@ export function Home({ me, onLogout, onOpen }: HomeProps) {
   const others = matches.filter((c) => c.ownerId !== me.id);
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="logo">A</span>
-          <span>akeru</span>
-        </div>
-
-        <nav className="nav">
-          <button className="nav-item active">Home</button>
-          <button className="nav-item" disabled title="Coming in the next step">
-            + Create character
-          </button>
-        </nav>
-
-        <div className="user">
-          <div className="avatar avatar-sm" style={avatarStyle(me.displayName)}>
-            {initials(me.displayName)}
-          </div>
-          <div className="user-meta">
-            <strong>{me.displayName}</strong>
-            <span>{me.role === "admin" ? "Admin" : `@${me.username}`}</span>
-          </div>
-          <button className="btn-ghost" onClick={onLogout}>
-            Log out
-          </button>
-        </div>
-      </aside>
+    <div className="app">
+      <Sidebar me={me} activeId={null} onHome={() => undefined} onOpen={onOpen} onLogout={onLogout} />
 
       <main className="main">
         <div className="topbar">

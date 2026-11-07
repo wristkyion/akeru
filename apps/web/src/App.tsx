@@ -44,7 +44,16 @@ export default function App() {
   if (checking) return <div className="splash">Loading…</div>;
   if (!me) return <LoginScreen onLoggedIn={setMe} />;
   if (active) {
-    return <ChatScreen key={active.id} me={me} character={active} onBack={() => setActive(null)} />;
+    return (
+      <ChatScreen
+        key={active.id}
+        me={me}
+        character={active}
+        onHome={() => setActive(null)}
+        onOpen={setActive}
+        onLogout={logout}
+      />
+    );
   }
-  return <Home me={me} onLogout={logout} onOpen={setActive} />;
+  return <Home me={me} onOpen={setActive} onLogout={logout} />;
 }
