@@ -1,15 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
-  addMessage,
   assertCanSend,
   createOwnedChat,
   deleteOwnChat,
   getOwnChat,
-  getVisibleCharacter,
   listMessages,
   listOwnChats,
   sendChatMessage,
+  startOwnedChat,
   type Chat,
   type User,
 } from "@chars/core";
@@ -40,9 +39,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
 
     const actor = req.actor as User;
     try {
-      const chat = createOwnedChat(ctx.db, actor, parsed.data.characterId, parsed.data.title ?? "");
-      const character = getVisibleCharacter(ctx.db, actor, parsed.data.characterId);
-      if (character?.greeting) addMessage(ctx.db, chat.id, "assistant", character.greeting);
+      const chat = startOwnedChat(ctx.db, req.actor as User, parsed.data.characterId);
       return reply.code(201).send(chat);
     } catch (err) {
       return httpError(reply, err);

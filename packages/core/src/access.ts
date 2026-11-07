@@ -1,6 +1,14 @@
 import type { DB } from "./db.js";
 import type { User } from "./auth.js";
-import { createCharacter, deleteCharacter, updateCharacter, type CharacterInput } from "./characters.js";
+import { addMessage } from "./chats.js";
+import { fillPlaceholders } from "./placeholders.js";
+import {
+  createCharacter,
+  deleteCharacter,
+  parseTags,
+  updateCharacter,
+  type CharacterInput,
+} from "./characters.js";
 import { createChat, deleteChat, type Chat } from "./chats.js";
 
 export type Visibility = "public" | "private";
@@ -10,8 +18,10 @@ export interface CharacterView {
   id: string;
   name: string;
   description: string;
+  definition: string;
   personality: string;
   greeting: string;
+  tags: string[];
   avatarPath: string | null;
   visibility: Visibility;
   ownerId: string | null;
@@ -24,8 +34,10 @@ export interface CharacterView {
 export interface NewCharacterInput {
   name: string;
   description?: string;
+  definition?: string;
   personality?: string;
   greeting?: string;
+  tags?: string[];
   visibility?: Visibility;
 }
 
@@ -35,8 +47,10 @@ type ViewRow = {
   id: string;
   name: string;
   description: string;
+  definition: string;
   personality: string;
   greeting: string;
+  tags: string;
   avatar_path: string | null;
   visibility: Visibility;
   owner_id: string | null;
@@ -44,8 +58,8 @@ type ViewRow = {
 };
 
 const VIEW_SQL = `
-  SELECT c.id, c.name, c.description, c.personality, c.greeting, c.avatar_path,
-         c.visibility, c.owner_id, u.username AS owner_name
+  SELECT c.id, c.name, c.description, c.definition, c.personality, c.greeting, c.tags,
+         c.avatar_path, c.visibility, c.owner_id, u.username AS owner_name
   FROM characters c
   LEFT JOIN users u ON u.id = c.owner_id
 `;
@@ -57,8 +71,7 @@ function params(user: User) {
   return { uid: user.id, isAdmin: user.role === "admin" ? 1 : 0 };
 }
 
-// Characters with no owner (made before accounts existed, or via the CLI for now)
-// belong to the admin. Everyone else has no access to them.
+// Characters with no owner (made before accounts existed) belong to the admin
 function toView(r: ViewRow, user: User): CharacterView {
   const isAdmin = user.role === "admin";
   const isOwner = r.owner_id === user.id;
@@ -67,8 +80,10 @@ function toView(r: ViewRow, user: User): CharacterView {
     id: r.id,
     name: r.name,
     description: r.description,
+    definition: r.definition,
     personality: r.personality,
     greeting: r.greeting,
+    tags: parseTags(r.tags),
     avatarPath: r.avatar_path,
     visibility: r.visibility,
     ownerId: r.owner_id,
@@ -100,8 +115,10 @@ export function createOwnedCharacter(db: DB, owner: User, input: NewCharacterInp
     const created = createCharacter(db, {
       name: input.name,
       description: input.description,
+      definition: input.definition,
       personality: input.personality,
       greeting: input.greeting,
+      tags: input.tags,
     });
     db.prepare("UPDATE characters SET owner_id = ?, visibility = ? WHERE id = ?").run(
       owner.id,
@@ -183,12 +200,27 @@ export function deleteOwnChat(db: DB, user: User, chatId: string): boolean {
   return deleteChat(db, chatId);
 }
 
-// Call this before sending a message. It checks both that the user owns the chat
-// and that the character is still available to them.
+// Call this before sending a message. Checks the chat is yours and the character is still available.
 export function assertCanSend(db: DB, user: User, chatId: string): Chat {
   const chat = getOwnChat(db, user, chatId);
   if (!chat) throw new Error("chat not found");
   const character = getVisibleCharacter(db, user, chat.characterId);
   if (!character?.canChat) throw new Error("this character is no longer available to you");
+  return chat;
+}
+
+// Starts a chat and saves the greeting with {{char}} and {{user}} filled in
+export function startOwnedChat(db: DB, user: User, characterId: string): Chat {
+  const character = getVisibleCharacter(db, user, characterId);
+  if (!character?.canChat) throw new Error("character not found");
+
+  const chat = createOwnedChat(db, user, characterId);
+  if (character.greeting) {
+    const text = fillPlaceholders(character.greeting, {
+      char: character.name,
+      user: user.displayName,
+    });
+    addMessage(db, chat.id, "assistant", text);
+  }
   return chat;
 }

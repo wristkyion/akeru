@@ -1,25 +1,33 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, setUnauthorizedHandler, tokenStore, type CharacterView, type Me } from "./api";
 import { ChatScreen } from "./Chat";
+import { CharacterForm } from "./CharacterForm";
 import { Home } from "./Home";
 import { LoginScreen } from "./LoginScreen";
 
+type Screen =
+  | { kind: "home" }
+  | { kind: "chat"; character: CharacterView }
+  | { kind: "create" }
+  | { kind: "edit"; character: CharacterView };
+
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
-  const [active, setActive] = useState<CharacterView | null>(null);
+  const [screen, setScreen] = useState<Screen>({ kind: "home" });
   const [checking, setChecking] = useState(true);
+  // Bumped after a save or delete, so the home list and sidebar reload
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setMe(null);
-      setActive(null);
+      setScreen({ kind: "home" });
     });
 
     if (!tokenStore.get()) {
       setChecking(false);
       return;
     }
-    // Check the saved token is still valid before showing the app
     api
       .me()
       .then(setMe)
@@ -38,22 +46,62 @@ export default function App() {
     }
     tokenStore.clear();
     setMe(null);
-    setActive(null);
+    setScreen({ kind: "home" });
   };
+
+  const home = () => setScreen({ kind: "home" });
+  const openChat = (c: CharacterView) => setScreen({ kind: "chat", character: c });
+  const openCreate = () => setScreen({ kind: "create" });
 
   if (checking) return <div className="splash">Loading…</div>;
   if (!me) return <LoginScreen onLoggedIn={setMe} />;
-  if (active) {
+
+  if (screen.kind === "create" || screen.kind === "edit") {
+    const existing = screen.kind === "edit" ? screen.character : undefined;
+    return (
+      <div className="app">
+        <main className="main form-main">
+          <CharacterForm
+            existing={existing}
+            onCancel={home}
+            onSaved={(saved) => {
+              setRevision((r) => r + 1);
+              // After creating, go to the chat so the user can start talking right away
+              setScreen(existing ? { kind: "home" } : { kind: "chat", character: saved });
+            }}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  if (screen.kind === "chat") {
     return (
       <ChatScreen
-        key={active.id}
+        key={screen.character.id}
         me={me}
-        character={active}
-        onHome={() => setActive(null)}
-        onOpen={setActive}
+        character={screen.character}
+        revision={revision}
+        onHome={home}
+        onOpen={openChat}
+        onCreate={openCreate}
+        onEdit={(c) => setScreen({ kind: "edit", character: c })}
+        onDeleted={() => {
+          setRevision((r) => r + 1);
+          home();
+        }}
         onLogout={logout}
       />
     );
   }
-  return <Home me={me} onOpen={setActive} onLogout={logout} />;
+
+  return (
+    <Home
+      me={me}
+      revision={revision}
+      onOpen={openChat}
+      onCreate={openCreate}
+      onLogout={logout}
+    />
+  );
 }

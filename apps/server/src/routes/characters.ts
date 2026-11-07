@@ -12,10 +12,12 @@ import type { AppContext } from "../context.js";
 import { httpError } from "../guard.js";
 
 const CharacterInput = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  personality: z.string().optional(),
-  greeting: z.string().optional(),
+  name: z.string().min(1).max(60),
+  description: z.string().max(500).optional(),
+  definition: z.string().max(4000).optional(),
+  personality: z.string().max(2000).optional(),
+  greeting: z.string().max(500).optional(),
+  tags: z.array(z.string().max(24)).max(10).optional(),
   visibility: z.enum(["public", "private"]).optional(),
 });
 

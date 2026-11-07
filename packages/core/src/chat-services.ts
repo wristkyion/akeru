@@ -5,16 +5,21 @@ import { completeWithRef, type createProviderRegistry } from "./providers/regist
 import type { GenerationOptions } from "./providers/types.js";
 import type { User } from "./auth.js";
 import { assertWithinLimit } from "./limits.js";
+import { fillPlaceholders } from "./placeholders.js";
 
 export type Registry = ReturnType<typeof createProviderRegistry>;
 
 export function systemPrompt(c: Character, user?: UserProfile): string {
+  const names = { char: c.name, user: user?.name ?? "the user" };
+  const fill = (text: string) => fillPlaceholders(text, names);
+
   const lines = [
     `You are ${c.name}. You are roleplaying this character, so stay in character at all times.`,
-    c.description && `Who you are: ${c.description}`,
-    c.personality && `How you speak and act: ${c.personality}`,
+    c.description && `Who you are: ${fill(c.description)}`,
+    c.definition && `Background and details about you:\n${fill(c.definition)}`,
+    c.personality && `How you speak and act: ${fill(c.personality)}`,
     user && `You are talking with ${user.name}.`,
-    user?.persona && `About ${user.name}: ${user.persona}`,
+    user?.persona && `About ${user.name}: ${fill(user.persona)}`,
     `Reply as ${c.name} would, in first person, with natural dialogue. Use *asterisks* for short actions when they fit.`,
     "Keep replies conversational and a natural length. React to what the user just said and remember earlier messages.",
     "Do not add disclaimers or out-of-character notes, and do not talk about the underlying model or provider.",

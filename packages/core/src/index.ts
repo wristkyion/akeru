@@ -12,3 +12,4 @@ export * from "./access.js";
 export * from "./sessions.js";
 export * from "./rate-limit.js";
 export * from "./limits.js";
+export * from "./placeholders.js";

@@ -36,7 +36,7 @@ export function applySchema(db: DB): void {
 }
 // Each migration runs once, in order. PRAGMA user_version records how far we got.
 const MIGRATIONS: string[] = [
-  // 1: user accounts (already applied to your database, do not edit)
+  // 1: user accounts (already applied, do not edit)
   `
     CREATE TABLE IF NOT EXISTS users (
       id            TEXT PRIMARY KEY,
@@ -54,7 +54,7 @@ const MIGRATIONS: string[] = [
     ALTER TABLE chats ADD COLUMN owner_id TEXT REFERENCES users(id);
   `,
 
-  // 2: login sessions
+  // 2: login sessions (already applied, do not edit)
   `
     CREATE TABLE IF NOT EXISTS sessions (
       id           TEXT PRIMARY KEY,
@@ -66,6 +66,12 @@ const MIGRATIONS: string[] = [
       expires_at   INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  `,
+
+  // 3: character definition and tags (new)
+  `
+    ALTER TABLE characters ADD COLUMN definition TEXT NOT NULL DEFAULT '';
+    ALTER TABLE characters ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
   `,
 ];
 

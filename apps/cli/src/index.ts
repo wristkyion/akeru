@@ -3,7 +3,6 @@ import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  addMessage,
   createOwnedCharacter,
   createOwnedChat,
   createProviderRegistry,
@@ -25,6 +24,7 @@ import {
   updateUserProfile,
   listSessions,
   revokeUserSessions,
+  startOwnedChat,
   type CharacterPatch,
   type CharacterView,
   type User,
@@ -242,12 +242,8 @@ program
         model = (await listAllModels(configs)).flatMap((p) => p.models)[0] ?? "";
         if (!model) throw new Error("no models found; check config/settings.json or pass --model");
       }
-
-      const startChat = () => {
-        const ch = createOwnedChat(db, me, c.id);
-        if (c.greeting) addMessage(db, ch.id, "assistant", c.greeting);
-        return ch;
-      };
+      
+      const startChat = () => startOwnedChat(db, me, c.id);
 
       let chat = opts.chat
         ? listOwnChats(db, me, c.id).find((x) => x.id.startsWith(opts.chat!))

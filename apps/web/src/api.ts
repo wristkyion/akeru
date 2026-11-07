@@ -14,8 +14,10 @@ export interface CharacterView {
   id: string;
   name: string;
   description: string;
+  definition: string;
   personality: string;
   greeting: string;
+  tags: string[];
   avatarPath: string | null;
   visibility: "public" | "private";
   ownerId: string | null;
@@ -171,6 +173,16 @@ export interface ModelGroup {
   error?: string;
 }
 
+export interface CharacterInput {
+  name: string;
+  description?: string;
+  definition?: string;
+  personality?: string;
+  greeting?: string;
+  tags?: string[];
+  visibility?: "public" | "private";
+}
+
 export const api = {
   publicConfig: () => request<{ signup: boolean }>("/api/public-config", { auth: false }),
   login: (username: string, password: string) =>
@@ -189,6 +201,12 @@ export const api = {
   me: () => request<Me>("/api/me"),
   usage: () => request<Usage>("/api/me/usage"),
   characters: () => request<CharacterView[]>("/api/characters"),
+  createCharacter: (input: CharacterInput) =>
+    request<CharacterView>("/api/characters", { method: "POST", body: input }),
+  updateCharacter: (id: string, input: Partial<CharacterInput>) =>
+    request<CharacterView>(`/api/characters/${id}`, { method: "PUT", body: input }),
+  deleteCharacter: (id: string) =>
+    request<{ ok: boolean }>(`/api/characters/${id}`, { method: "DELETE" }),
   chats: (characterId: string) => request<ChatInfo[]>(`/api/characters/${characterId}/chats`),
   createChat: (characterId: string) =>
     request<ChatInfo>("/api/chats", { method: "POST", body: { characterId } }),

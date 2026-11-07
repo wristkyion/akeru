@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { api, type CharacterView, type ChatInfo, type Me, type Message, type Usage } from "./api";
+import { DeleteDialog } from "./DeleteDialog";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
 
@@ -111,14 +112,22 @@ function TypingRow({ name }: { name: string }) {
 export function ChatScreen({
   me,
   character,
+  revision,
   onHome,
   onOpen,
+  onCreate,
+  onEdit,
+  onDeleted,
   onLogout,
 }: {
   me: Me;
   character: CharacterView;
+  revision: number;
   onHome: () => void;
   onOpen: (c: CharacterView) => void;
+  onCreate: () => void;
+  onEdit: (c: CharacterView) => void;
+  onDeleted: () => void;
   onLogout: () => void;
 }) {
   const [chats, setChats] = useState<ChatInfo[]>([]);
@@ -128,6 +137,7 @@ export function ChatScreen({
   const [usage, setUsage] = useState<Usage | null>(null);
   const [settings, setSettings] = useState<ChatSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [lastText, setLastText] = useState<string | null>(null);
@@ -140,6 +150,8 @@ export function ChatScreen({
 
   const busy = pending !== null;
   const canChat = character.canChat;
+  const canEdit = character.canEdit;
+  const canDelete = character.canDelete;
   const isLimitError = /daily limit/.test(error);
 
   // Load this character's chats once. Starts the first chat (with its greeting) if there is none.
@@ -187,7 +199,6 @@ export function ChatScreen({
     }
   }, [settings]);
 
-  // Grow the text box with its content, up to a limit
   useEffect(() => {
     const el = taRef.current;
     if (!el) return;
@@ -222,7 +233,6 @@ export function ChatScreen({
         maxTokens: settings.maxTokens ?? undefined,
       });
     } catch (err) {
-      // Put the text back so it can be sent again
       setDraft(text);
       setError(errorText(err));
       setPending(null);
@@ -269,7 +279,15 @@ export function ChatScreen({
 
   return (
     <div className="app">
-      <Sidebar me={me} activeId={character.id} onHome={onHome} onOpen={onOpen} onLogout={onLogout} />
+      <Sidebar
+        me={me}
+        activeId={character.id}
+        revision={revision}
+        onHome={onHome}
+        onOpen={onOpen}
+        onCreate={onCreate}
+        onLogout={onLogout}
+      />
 
       <section className="chat-main">
         <header className="chat-head">
@@ -298,6 +316,16 @@ export function ChatScreen({
             <button className="pill-btn" onClick={newChat} disabled={!canChat || busy}>
               New chat
             </button>
+            {canEdit && (
+              <button className="pill-btn" onClick={() => onEdit(character)} disabled={busy}>
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button className="pill-btn danger-text" onClick={() => setShowDelete(true)} disabled={busy}>
+                Delete
+              </button>
+            )}
             <button
               className="icon-btn"
               onClick={() => setShowSettings((s) => !s)}
@@ -428,18 +456,21 @@ export function ChatScreen({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
             />
-            <button
-              className="send-btn"
-              onClick={submit}
-              disabled={!canChat || busy || !draft.trim()}
-              aria-label="Send"
-            >
+            <button className="send-btn" onClick={submit} disabled={!canChat || busy || !draft.trim()} aria-label="Send">
               <SendIcon />
             </button>
           </div>
           <p className="footnote">Remember: everything characters say is made up!</p>
         </footer>
       </section>
+
+      {showDelete && (
+        <DeleteDialog
+          character={character}
+          onCancel={() => setShowDelete(false)}
+          onDeleted={onDeleted}
+        />
+      )}
     </div>
   );
 }

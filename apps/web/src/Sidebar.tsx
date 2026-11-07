@@ -5,23 +5,25 @@ import { avatarStyle, initials } from "./ui";
 interface SidebarProps {
   me: Me;
   activeId: string | null;
+  revision: number;
   onHome: () => void;
   onOpen: (c: CharacterView) => void;
+  onCreate: () => void;
   onLogout: () => void;
 }
 
-export function Sidebar({ me, activeId, onHome, onOpen, onLogout }: SidebarProps) {
+export function Sidebar({ me, activeId, revision, onHome, onOpen, onCreate, onLogout }: SidebarProps) {
   const [characters, setCharacters] = useState<CharacterView[]>([]);
 
   useEffect(() => {
     api.characters().then(setCharacters).catch(() => setCharacters([]));
-  }, []);
+  }, [revision]);
 
   return (
     <aside className="sidebar">
       <div className="brand">akeru</div>
 
-      <button className="create-btn" disabled title="Coming in the next step">
+      <button className="create-btn" onClick={onCreate}>
         <span>+</span> Create
       </button>
 

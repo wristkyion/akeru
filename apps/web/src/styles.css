@@ -267,3 +267,54 @@ h1, h2, h3, p { margin: 0; }
   .composer { padding: 6px 12px 8px; }
   .msg-body { max-width: 86%; }
 }
+/* Character form */
+.form-main { overflow-y: auto; }
+.char-form { max-width: 720px; margin: 0 auto; padding: 32px 28px 48px; }
+.form-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.form-head h1 { font-size: 22px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.form-grid .full { grid-column: 1 / -1; }
+.char-form .field input,
+.char-form .field select,
+.char-form .field textarea {
+  width: 100%; background: var(--side); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 14px; resize: vertical;
+}
+.char-form .field textarea { line-height: 1.5; }
+.char-form .field input:focus,
+.char-form .field select:focus,
+.char-form .field textarea:focus { outline: 1px solid #555; }
+.form-actions { margin-top: 8px; }
+.form-submit { width: auto; padding: 11px 28px; }
+
+/* Empty state */
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+
+/* Danger actions */
+.danger-text { color: var(--danger); border-color: rgba(255, 122, 122, 0.35); }
+.danger-btn {
+  background: var(--danger); color: #1b1b1f; border: 0;
+  border-radius: 999px; padding: 9px 18px; font-weight: 600;
+}
+.danger-btn:disabled { opacity: 0.6; }
+
+/* Confirmation dialog */
+.dialog-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+  display: grid; place-items: center; padding: 20px; z-index: 10;
+}
+.dialog {
+  width: 100%; max-width: 420px; background: var(--side);
+  border: 1px solid var(--border); border-radius: 18px; padding: 24px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.dialog h2 { font-size: 18px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+@media (max-width: 720px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .char-form { padding: 20px 16px 40px; }
+}
+.tag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.tag-row.full { grid-column: 1 / -1; margin: -6px 0 10px; }
+.hint.full { grid-column: 1 / -1; }

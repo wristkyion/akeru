@@ -34,9 +34,7 @@ const clock = (ms: number) =>
   new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function startChat(db: DB, actor: User, c: Character): Chat {
-  const chat = createOwnedChat(db, actor, c.id);
-  if (c.greeting) addMessage(db, chat.id, "assistant", c.greeting);
-  return chat;
+  return startOwnedChat(db, actor, c.id);
 }
 
 // Estimated terminal lines for one message: header, wrapped content, spacing
