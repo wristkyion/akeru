@@ -299,6 +299,8 @@ program
               options,
               historyLimit: settings.chat.historyLimit,
               user: { name: me.displayName, persona: me.persona },
+              actor: me,
+              dailyLimit: settings.limits.dailyMessages,
             });
             console.log(`${c.name}> ${reply.content}`);
           } catch (err) {
@@ -329,6 +331,7 @@ program
       version: "0.1.0",
       historyLimit: settings.chat.historyLimit,
       actor: me,
+      dailyLimit: settings.limits.dailyMessages,
     });
   });
 

@@ -22,6 +22,7 @@ export interface UiDeps {
   version: string;
   historyLimit: number;
   actor: User;
+  dailyLimit: number;
 }
 
 const SIDEBAR_W = 24;
@@ -194,6 +195,8 @@ function App({ deps }: { deps: UiDeps }) {
         options: { temperature, maxTokens },
         historyLimit: contextLimit,
         user: { name: deps.actor.displayName, persona: deps.actor.persona },
+        actor: deps.actor,
+        dailyLimit: deps.dailyLimit,
       });
       setMessages(listMessages(deps.db, chat.id));
       setOffset(0);

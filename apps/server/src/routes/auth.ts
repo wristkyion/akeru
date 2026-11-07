@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { LoginLimiter, authenticate, createSession, revokeSession, signUp } from "@chars/core";
+import { LoginLimiter, authenticate, createSession, getUsage, revokeSession, signUp, type User } from "@chars/core";
 import type { AppContext } from "../context.js";
 
 const LoginBody = z.object({
@@ -64,6 +64,10 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   app.get("/api/me", async (req) => req.actor);
+
+  app.get("/api/me/usage", async (req) =>
+    getUsage(ctx.db, req.actor as User, ctx.settings.limits.dailyMessages),
+  );
 
   app.get("/api/public-config", async () => ({
     signup: ctx.settings.auth.signup === "open",

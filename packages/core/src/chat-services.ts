@@ -3,6 +3,8 @@ import type { DB } from "./db.js";
 import { addMessage, listMessages } from "./chats.js";
 import { completeWithRef, type createProviderRegistry } from "./providers/registry.js";
 import type { GenerationOptions } from "./providers/types.js";
+import type { User } from "./auth.js";
+import { assertWithinLimit } from "./limits.js";
 
 export type Registry = ReturnType<typeof createProviderRegistry>;
 
@@ -33,11 +35,16 @@ export interface SendArgs {
   content: string;
   model: string;
   options?: GenerationOptions;
-  historyLimit?: number; // how many past messages the model sees
+  historyLimit?: number;
   user?: UserProfile;
+  actor?: User;        // when set, the daily limit applies to this account
+  dailyLimit?: number; // 0 or undefined means no limit
 }
 
 export async function sendChatMessage(args: SendArgs) {
+  // Check the limit before any model call, so a blocked message costs nothing
+  if (args.actor && args.dailyLimit) assertWithinLimit(args.db, args.actor, args.dailyLimit);
+
   const character = getCharacter(args.db, args.characterId);
   if (!character) throw new Error("character not found");
 
@@ -47,7 +54,7 @@ export async function sendChatMessage(args: SendArgs) {
     .map((m) => ({ role: m.role, content: m.content }));
 
   const messages = [
-    { role: "system" as const, content: systemPrompt(character) },
+    { role: "system" as const, content: systemPrompt(character, args.user) },
     ...history,
     { role: "user" as const, content: args.content },
   ];

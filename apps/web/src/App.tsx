@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, setUnauthorizedHandler, tokenStore, type Me } from "./api";
+import { api, ApiError, setUnauthorizedHandler, tokenStore, type CharacterView, type Me } from "./api";
+import { ChatScreen } from "./Chat";
 import { Home } from "./Home";
 import { LoginScreen } from "./LoginScreen";
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
+  const [active, setActive] = useState<CharacterView | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => setMe(null));
+    setUnauthorizedHandler(() => {
+      setMe(null);
+      setActive(null);
+    });
 
     if (!tokenStore.get()) {
       setChecking(false);
@@ -33,9 +38,13 @@ export default function App() {
     }
     tokenStore.clear();
     setMe(null);
+    setActive(null);
   };
 
   if (checking) return <div className="splash">Loading…</div>;
   if (!me) return <LoginScreen onLoggedIn={setMe} />;
-  return <Home me={me} onLogout={logout} />;
+  if (active) {
+    return <ChatScreen key={active.id} me={me} character={active} onBack={() => setActive(null)} />;
+  }
+  return <Home me={me} onLogout={logout} onOpen={setActive} />;
 }

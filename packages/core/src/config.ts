@@ -29,6 +29,12 @@ const SettingsSchema = z.object({
       historyLimit: z.number().int().min(2).max(500).default(40),
     })
     .default({}),
+  limits: z
+    .object({
+      // Messages each non-admin user can send per day. 0 means unlimited.
+      dailyMessages: z.number().int().min(0).max(100000).default(50),
+    })
+    .default({}),
   user: z
     .object({
       name: z.string().default("you"),

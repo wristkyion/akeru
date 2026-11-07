@@ -143,6 +143,34 @@ function deviceName(): string {
   return `${browser} on ${os}`;
 }
 
+export interface ChatInfo {
+  id: string;
+  characterId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  role: "system" | "user" | "assistant";
+  content: string;
+  createdAt: number;
+}
+
+export interface Usage {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+}
+
+export interface ModelGroup {
+  provider: string;
+  models: string[];
+  error?: string;
+}
+
 export const api = {
   publicConfig: () => request<{ signup: boolean }>("/api/public-config", { auth: false }),
   login: (username: string, password: string) =>
@@ -159,5 +187,13 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>("/api/logout", { method: "POST", body: {} }),
   me: () => request<Me>("/api/me"),
+  usage: () => request<Usage>("/api/me/usage"),
   characters: () => request<CharacterView[]>("/api/characters"),
+  chats: (characterId: string) => request<ChatInfo[]>(`/api/characters/${characterId}/chats`),
+  createChat: (characterId: string) =>
+    request<ChatInfo>("/api/chats", { method: "POST", body: { characterId } }),
+  messages: (chatId: string) => request<Message[]>(`/api/chats/${chatId}/messages`),
+  send: (chatId: string, body: { content: string; model: string; temperature?: number; maxTokens?: number }) =>
+    request<Message>(`/api/chats/${chatId}/messages`, { method: "POST", body }),
+  models: () => request<ModelGroup[]>("/api/models"),
 };

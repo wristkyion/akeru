@@ -87,10 +87,14 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         options: { temperature, maxTokens, topP },
         historyLimit: ctx.settings.chat.historyLimit,
         user: { name: actor.displayName, persona: actor.persona },
+        actor,
+        dailyLimit: ctx.settings.limits.dailyMessages,
       });
     } catch (err) {
+      const message = errorText(err);
+      if (/daily limit/.test(message)) return reply.code(429).send({ error: message });
       // A failed model call is a server-side problem, so it returns 502
-      return reply.code(502).send({ error: errorText(err) });
+      return reply.code(502).send({ error: message });
     }
   });
 }

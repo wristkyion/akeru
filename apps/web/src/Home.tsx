@@ -4,6 +4,7 @@ import { api, ApiError, type CharacterView, type Me } from "./api";
 interface HomeProps {
   me: Me;
   onLogout: () => void;
+  onOpen: (c: CharacterView) => void;
 }
 
 // Colors come from the name, so each character keeps the same avatar color
@@ -21,10 +22,26 @@ function initials(name: string): string {
   return (letters || name.trim().slice(0, 2)).toUpperCase() || "?";
 }
 
-function CharacterCard({ c, meId }: { c: CharacterView; meId: string }) {
+function CharacterCard({
+  c,
+  meId,
+  onOpen,
+}: {
+  c: CharacterView;
+  meId: string;
+  onOpen: (c: CharacterView) => void;
+}) {
   const owner = c.ownerId === meId ? "you" : (c.ownerName ?? "unknown");
   return (
-    <article className="card">
+    <article
+      className="card card-link"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(c)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onOpen(c);
+      }}
+    >
       <div className="avatar" style={avatarStyle(c.name)}>
         {initials(c.name)}
       </div>
@@ -50,11 +67,13 @@ function Section({
   items,
   emptyText,
   meId,
+  onOpen,
 }: {
   title: string;
   items: CharacterView[];
   emptyText: string;
   meId: string;
+  onOpen: (c: CharacterView) => void;
 }) {
   return (
     <section>
@@ -64,7 +83,7 @@ function Section({
       ) : (
         <div className="grid">
           {items.map((c) => (
-            <CharacterCard key={c.id} c={c} meId={meId} />
+            <CharacterCard key={c.id} c={c} meId={meId} onOpen={onOpen} />
           ))}
         </div>
       )}
@@ -72,7 +91,7 @@ function Section({
   );
 }
 
-export function Home({ me, onLogout }: HomeProps) {
+export function Home({ me, onLogout, onOpen }: HomeProps) {
   const [characters, setCharacters] = useState<CharacterView[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -140,7 +159,7 @@ export function Home({ me, onLogout }: HomeProps) {
         <div className="content">
           <section className="hero">
             <h1>Welcome back, {me.displayName}</h1>
-            <p className="muted">Pick a character to start talking. Chat screens are the next step.</p>
+            <p className="muted">Pick a character to start talking.</p>
           </section>
 
           {error && <p className="error">{error}</p>}
@@ -152,12 +171,14 @@ export function Home({ me, onLogout }: HomeProps) {
                 title="Your characters"
                 items={mine}
                 meId={me.id}
+                onOpen={onOpen}
                 emptyText={query ? "No matches." : "You haven't made any characters yet."}
               />
               <Section
                 title="Other characters"
                 items={others}
                 meId={me.id}
+                onOpen={onOpen}
                 emptyText="No other characters are visible to you."
               />
             </>
