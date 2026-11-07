@@ -1,0 +1,10 @@
+node_modules
+dist
+user/
+config/secrets.json
+*.db
+config/settings.json
+config/settings.json
+config/*.db-wal
+config/*.db-shm
+config/*.db-journal
