@@ -78,7 +78,7 @@ export function sendableParams(s: ChatSettings): Partial<Record<ParamKey, number
   return out;
 }
 
-function ParamRow({
+export function ParamRow({
   spec,
   state,
   onChange,

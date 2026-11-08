@@ -9,6 +9,7 @@ interface HomeProps {
   onOpen: (c: CharacterView) => void;
   onCreate: () => void;
   onLogout: () => void;
+  onSettings: () => void;
   onChangePassword: () => void;
 }
 
@@ -95,7 +96,7 @@ function Section({
   );
 }
 
-export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePassword }: HomeProps) {
+export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePassword, onSettings }: HomeProps) {
   const [characters, setCharacters] = useState<CharacterView[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -136,6 +137,7 @@ export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePasswor
         onOpen={onOpen}
         onCreate={onCreate}
         onLogout={onLogout}
+        onSettings={onSettings}
         onChangePassword={onChangePassword}
       />
 

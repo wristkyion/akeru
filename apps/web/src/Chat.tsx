@@ -8,16 +8,12 @@ import {
   type Message,
   type Usage,
 } from "./api";
-import {
-  ChatSettingsPanel,
-  SETTINGS_KEY,
-  loadSettings,
-  sendableParams,
-  type ChatSettings,
-} from "./ChatSettings";
+import { CharacterPanel } from "./CharacterPanel";
+import { SETTINGS_KEY, loadSettings, sendableParams, type ChatSettings } from "./ChatSettings";
 import { DeleteDialog } from "./DeleteDialog";
 import { Formatted } from "./Markdown";
 import { MessageItem } from "./MessageItem";
+import { Icon } from "./Icons";
 import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
 
@@ -132,7 +128,7 @@ export function ChatScreen({
   onEdit,
   onDeleted,
   onLogout,
-  onChangePassword,
+  onSettings,
 }: {
   me: Me;
   character: CharacterView;
@@ -143,7 +139,7 @@ export function ChatScreen({
   onEdit: (c: CharacterView) => void;
   onDeleted: () => void;
   onLogout: () => void;
-  onChangePassword: () => void;
+  onSettings: () => void;
 }) {
   const [chats, setChats] = useState<ChatInfo[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
@@ -151,8 +147,9 @@ export function ChatScreen({
   const [models, setModels] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [settings, setSettings] = useState<ChatSettings>(loadSettings);
-  const [showSettings, setShowSettings] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  // Phone drawers: left = sidebar, right = character panel. Only one can be open at a time.
+  const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [streamText, setStreamText] = useState("");
@@ -169,8 +166,6 @@ export function ChatScreen({
 
   const busy = pending !== null || working || refreshingId !== null;
   const canChat = character.canChat;
-  const canEdit = character.canEdit;
-  const canDelete = character.canDelete;
   const isLimitError = /daily limit/.test(error);
 
   // Load this character's chats once. Starts the first chat (with its greeting) if there is none.
@@ -213,6 +208,13 @@ export function ChatScreen({
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, pending, streamText]);
 
+  // Keep the chat settings in step with what the Settings page saves
+  useEffect(() => {
+    const refreshSettings = () => setSettings(loadSettings());
+    window.addEventListener("storage", refreshSettings);
+    return () => window.removeEventListener("storage", refreshSettings);
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -227,6 +229,11 @@ export function ChatScreen({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [draft]);
+
+  // Close a phone drawer when a chat is opened or a screen changes
+  useEffect(() => {
+    setDrawer(null);
+  }, [character.id]);
 
   // Reloads messages, usage, and the chat list, so titles and order stay current
   async function refresh(id: string) {
@@ -263,10 +270,8 @@ export function ChatScreen({
     setPending(text);
 
     try {
-      await streamMessage(
-        chatId,
-        { content: text, ...gen },
-        (token) => setStreamText((s) => s + token),
+      await streamMessage(chatId, { content: text, ...gen }, (token) =>
+        setStreamText((s) => s + token),
       );
     } catch (err) {
       // Nothing was saved. Put the text back so it can be sent again
@@ -406,7 +411,7 @@ export function ChatScreen({
       : null;
 
   return (
-    <div className="app">
+    <div className={drawer ? `app drawer-open drawer-${drawer}` : "app"}>
       <Sidebar
         me={me}
         activeId={character.id}
@@ -414,7 +419,10 @@ export function ChatScreen({
         chatPanel={{
           chats,
           activeChatId: chatId,
-          onPick: pickChat,
+          onPick: (id) => {
+            pickChat(id);
+            setDrawer(null);
+          },
           onNew: newChat,
           onRename: renameChatItem,
           onDelete: deleteChatItem,
@@ -422,66 +430,50 @@ export function ChatScreen({
         onHome={onHome}
         onOpen={onOpen}
         onCreate={onCreate}
+        onSettings={onSettings}
         onLogout={onLogout}
-        onChangePassword={onChangePassword}
       />
 
-      <section className="chat-main">
-        <header className="chat-head">
-          <span className="avatar head-avatar" style={avatarStyle(character.name)}>
-            {initials(character.name)}
-          </span>
-          <div className="head-title">
-            <strong>{character.name}</strong>
-            <span className="muted small">By @{character.ownerName ?? "unknown"}</span>
-          </div>
-          <div className="head-actions">
-            {/* Phones hide the sidebar, so the chat picker lives here on small screens */}
-            {chats.length > 1 && (
-              <select
-                className="chat-select mobile-only"
-                value={chatId ?? ""}
-                onChange={(e) => pickChat(e.target.value)}
-                disabled={busy}
-              >
-                {chats.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {chatTitle(c)}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button className="pill-btn" onClick={newChat} disabled={!canChat || busy}>
-              New chat
-            </button>
-            {canEdit && (
-              <button className="pill-btn" onClick={() => onEdit(character)} disabled={busy}>
-                Edit
-              </button>
-            )}
-            {canDelete && (
-              <button
-                className="pill-btn danger-text"
-                onClick={() => setShowDelete(true)}
-                disabled={busy}
-              >
-                Delete
-              </button>
-            )}
-            <button
-              className="icon-btn"
-              onClick={() => setShowSettings((s) => !s)}
-              aria-label="Chat settings"
-              title="Chat settings"
-            >
-              ⋯
-            </button>
-          </div>
-        </header>
+      {/* Tapping the dark area behind an open drawer closes it */}
+      {drawer && <div className="drawer-scrim" onClick={() => setDrawer(null)} />}
 
-        {showSettings && (
-          <ChatSettingsPanel settings={settings} models={models} onChange={setSettings} />
-        )}
+      <section className="chat-main">
+        {/* Phones only: icons open the sidebar (left) and the character panel (right) */}
+        <div className="chat-mobile-bar">
+          <button
+            className="icon-btn"
+            onClick={() => setDrawer(drawer === "left" ? null : "left")}
+            aria-label="Open sidebar"
+            title="Sidebar"
+          >
+            <Icon name="chat" size={18} />
+          </button>
+          {chats.length > 1 && (
+            <select
+              className="chat-select"
+              value={chatId ?? ""}
+              onChange={(e) => pickChat(e.target.value)}
+              disabled={busy}
+            >
+              {chats.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {chatTitle(c)}
+                </option>
+              ))}
+            </select>
+          )}
+          <button className="pill-btn" onClick={newChat} disabled={!canChat || busy}>
+            New chat
+          </button>
+          <button
+            className="icon-btn"
+            onClick={() => setDrawer(drawer === "right" ? null : "right")}
+            aria-label="Open character panel"
+            title="Character"
+          >
+            <Icon name="flag" size={18} />
+          </button>
+        </div>
 
         <main className="messages">
           <div className="messages-inner">
@@ -566,6 +558,8 @@ export function ChatScreen({
           <p className="footnote">Remember: everything characters say is made up!</p>
         </footer>
       </section>
+
+      <CharacterPanel character={character} onEdit={onEdit} />
 
       {showDelete && (
         <DeleteDialog

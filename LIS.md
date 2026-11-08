@@ -5,7 +5,7 @@
 ### Foundation
 - [x] Monorepo setup (pnpm workspace: core, server, web, cli)
 - [x] SQLite data layer: characters, chats, messages, cascade delete
-- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 3
+- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 5
 - [x] OpenAI-compatible provider adapter
 - [x] Model listing from all providers
 - [x] Provider config and secrets loading
@@ -18,17 +18,26 @@
 - [x] Tags and genre: up to 10, shown on cards, searchable
 - [x] Length limits: description 1000, personality 32000, greeting 5000, definition 32000
 - [x] Placeholders `{{char}}` and `{{user}}` in greetings and character text, filled in when the chat starts and in each prompt
+- [x] Create, edit, and delete characters in the web app, with a confirmation before delete
 
 ### Chat
 - [x] Shared send function (`sendChatMessage`) used by server, CLI, UI, and web
 - [x] Persona built from character fields and account profile
 - [x] Failed sends save nothing, so no duplicate messages
 - [x] Context limit (`historyLimit`, default 40), set in settings and with `/context`
-- [x] Temperature and max tokens (terminal `/temp`, `/max`; web settings panel)
 - [x] Daily message limit per user, with usage shown in the web chat
 - [x] Admins are exempt from the daily limit
 - [x] Streaming replies word by word in the web chat, with a fallback for providers that don't stream
 - [x] Bold (`**text**`) and italic (`*text*`, `_text_`) rendering in messages, without HTML
+- [x] Past chats listed under each character in the sidebar, with titles from the first message
+- [x] Rename and delete a chat from the sidebar
+- [x] Deleting the last chat starts a fresh one
+- [x] Edit a message (text only, no model call)
+- [x] Save & resend: edit your message and write a new reply, removing the messages after it
+- [x] Refresh: write a new reply to the newest assistant message, with the typing indicator in its place
+- [x] Delete a single message
+- [x] Chat parameters panel: max response size, temperature, top P, top K, min P, repetition and presence/frequency penalties, seed (each one only sent when turned on)
+- [x] Chat settings saved in the browser; the model dropdown lives in the same panel
 
 ### Accounts and access
 - [x] User accounts with admin and user roles
@@ -36,7 +45,9 @@
 - [x] First admin claims existing characters and chats
 - [x] Display name and persona per account
 - [x] Disable and enable accounts; the last enabled admin cannot be disabled
-- [x] Password reset from the CLI
+- [x] Password reset from the CLI, which forces a change at next login
+- [x] Change your own password from the web sidebar, signing out other devices
+- [x] Forced password change screen after an admin reset
 - [x] Open sign-up behind a setting (`auth.signup`), with reserved names and attempt limits
 - [x] Character visibility: public or private, owner and admin rules
 - [x] Chats private to their owner, including from the admin
@@ -53,7 +64,7 @@
 
 ### Server
 - [x] Fastify server with settings-driven host and port
-- [x] Character, chat, message, stream, model, and sign-up routes
+- [x] Routes for characters, chats, messages, streaming, models, sign-up, and password change
 - [x] Production build served from the server on port 3000
 - [x] Error codes: 401 not logged in, 403 not allowed, 404 not found, 409 name taken, 429 locked out or daily limit, 502 model failed
 
@@ -61,16 +72,12 @@
 - [x] Token storage, automatic logout on an expired or revoked token
 - [x] Login screen, with sign-up when it's open
 - [x] Character-style layout: sidebar, character cards, chat with names and avatars
-- [x] Create, edit, and delete characters, with a confirmation before delete
-- [x] Edit and delete shown only to the owner (and delete to admin)
-- [x] Logout button (this device only)
 - [x] Character list with search, including tags
 - [x] Chat screen: greeting, your message shown right away, typing indicator, streaming
-- [x] Chat settings: model, temperature, max tokens (saved in the browser)
 - [x] Retry on failed send, with text kept in the box
 - [x] Enter sends, Shift+Enter adds a line
 - [x] Dev proxy reads the server port from `settings.json`
-- [x] Works on phones: the sidebar becomes a top bar on narrow screens
+- [x] Works on phones: the sidebar becomes a top bar on narrow screens, with a chat picker in the header
 
 ### Terminal UI and CLI
 - [x] CLI commands: characters, chats, models, chat, ui, and user accounts
@@ -83,34 +90,43 @@
 - [x] Terminal UI: shows which account is running it
 
 ### Testing
-- [x] Unit tests: 27 passing (database, accounts, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, login)
+- [x] Unit tests: 40 passing (database, accounts, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, titles, password change, message actions, login)
 - [x] End-to-end script: 21 checks against the running server, with self-cleanup
 
 ### Phone access
 - [x] Server and dev server listen on the network
 - [x] Tailscale setup documented for phone access when the router blocks device-to-device traffic
+- [x] Firewall and network profile checks documented for home Wi-Fi
 
 ## Next
 
+### Redesign
+- [ ] Move colors, sizes, and fonts into named variables at the top of `styles.css`
+- [ ] Redesign the login and home screens (visual refresh first)
+- [ ] Redesign the chat screen, after the simpler screens are done
+- [ ] Check every screen on a phone-width window before merging
+- [ ] Do the redesign on a `redesign` branch, and merge only when it works
+
 ### Web
-- [ ] Change your own password (needed now that sign-up is open)
+- [ ] Stop button for streaming replies (cancels the request and saves the partial text, marked as cut off)
+- [ ] Refresh and Save & resend stream like normal sends
 - [ ] Admin panel, admin only: list users and sessions, disable and enable accounts, revoke sessions
-- [ ] Stop button for streaming replies (cancels the request and keeps the partial text)
-- [ ] Past chats listed under each character, with titles
 - [ ] Show a character's name on the home card when it's private
 - [ ] Mobile check on a real phone through Tailscale, including the built app
+- [ ] Prompt tab in the chat settings: a per-chat system prompt override
+- [ ] Other tab in the chat settings: extra options
 
 ### Characters and chat
 - [ ] Prompt size warning when definition and personality are large for the chosen model
 - [ ] Example dialogue as its own field
-- [ ] Per-character model, temperature, and max tokens
-- [ ] Delete a chat from the chat screen
-- [ ] Back up `config\chars.db` on a schedule (script or documented steps)
+- [ ] Per-character model and parameters (saved with the character, like the Chat Bot panel)
+- [ ] Context size shown in the parameters panel (currently the server's message count)
 
 ### Terminal and CLI
 - [ ] `--definition` and `--tags` flags on `create` and `edit`
 - [ ] Tag filter for `list`
 - [ ] Streaming in the terminal UI
+- [ ] The chat parameters panel in the terminal UI
 - [ ] Create and edit characters inside the terminal UI
 
 ### Providers and models
@@ -119,7 +135,8 @@
 - [ ] Remove the unused `user` block from the server code path, if any remains
 
 ### Housekeeping
-- [ ] Update README with definition, tags, placeholders, streaming, markdown, and the Tailscale phone setup
+- [ ] Back up `config\chars.db` on a schedule (script or documented steps)
+- [ ] Update the README with definitions, tags, placeholders, streaming, markdown, message actions, the parameter panel, and the Tailscale phone setup
 - [ ] Remove the older `packages/core/src/providers/provider.test.ts` if it duplicates the new tests
 
 ## Later
@@ -147,9 +164,12 @@
 - Open sign-up lets anyone who can reach the server create an account. Turn it off in `settings.json` if the server is shared beyond your household.
 - Daily limits count messages, not cost.
 - Long definitions and personalities can push older chat history out of small local models' context windows, without a warning.
-- Some providers ignore streaming and send the whole reply at once, so words won't appear one by one with them.
+- Some providers ignore streaming, or reject parameters they don't support, so a setting turned on in the panel can cause an error for that provider.
+- Save & resend removes the messages after the edited one. This is intentional, but it can't be undone.
+- Refresh and Save & resend wait for the full reply instead of streaming.
 - `/api/models` is slow because it fetches from every provider on each call.
 - Sign-up and login attempts are limited per IP, so people behind the same router share one limit.
 - Models sometimes refuse or drift out of character. Persona prompt tuning is ongoing.
 - Chat settings in the web app are saved per browser, not per account.
 - Greetings already saved in older chats keep their `{{user}}` text, since placeholders are filled only when a chat starts.
+- The web chat's context size is the server default (40 messages), not yet set from the panel.

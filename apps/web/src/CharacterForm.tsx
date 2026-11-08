@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, type CharacterInput, type CharacterView } from "./api";
+import { DeleteDialog } from "./DeleteDialog";
 
 interface CharacterFormProps {
   // When editing, pass the existing character. When creating, leave it out.
   existing?: CharacterView;
   onSaved: (c: CharacterView) => void;
   onCancel: () => void;
+  onDeleted?: () => void;
 }
 
 // "fantasy, slice of life" becomes ["fantasy", "slice of life"]
@@ -16,7 +18,7 @@ function parseTagText(text: string): string[] {
     .filter(Boolean);
 }
 
-export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProps) {
+export function CharacterForm({ existing, onSaved, onCancel, onDeleted }: CharacterFormProps) {
   const editing = Boolean(existing);
   const [name, setName] = useState(existing?.name ?? "");
   const [tagText, setTagText] = useState(existing?.tags.join(", ") ?? "");
@@ -29,6 +31,7 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showDelete, setShowDelete] = useState(false);
 
   const tagPreview = parseTagText(tagText);
 
@@ -167,6 +170,36 @@ export function CharacterForm({ existing, onSaved, onCancel }: CharacterFormProp
           {busy ? "Saving…" : editing ? "Save changes" : "Create character"}
         </button>
       </div>
+
+      {editing && existing?.canDelete && (
+        <div className="form-danger">
+          <div>
+            <strong>Delete this character</strong>
+            <p className="muted small">
+              Removes the character and every chat with it, for everyone. It can't be undone.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="danger-btn"
+            onClick={() => setShowDelete(true)}
+            disabled={busy}
+          >
+            Delete character
+          </button>
+        </div>
+      )}
+
+      {showDelete && existing && (
+        <DeleteDialog
+          character={existing}
+          onCancel={() => setShowDelete(false)}
+          onDeleted={() => {
+            setShowDelete(false);
+            onDeleted?.();
+          }}
+        />
+      )}
     </form>
   );
 }
