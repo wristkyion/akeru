@@ -145,8 +145,9 @@ function EditRoute(props: Shared) {
 // /character/:characterId and /character/:characterId/:chatId
 // The chatId is accepted here but the chat screen still opens the newest chat.
 // Selecting a chat from the URL comes with the next Chat.tsx step.
+// /character/:characterId and /character/:characterId/:chatId
 function ChatRoute(props: Shared) {
-  const { characterId } = useParams();
+  const { characterId, chatId } = useParams();
   const navigate = useNavigate();
   const character = useCharacter(characterId, props.revision);
 
@@ -158,6 +159,7 @@ function ChatRoute(props: Shared) {
       key={character.id}
       me={props.me}
       character={character}
+      chatId={chatId ?? null}
       revision={props.revision}
       onHome={() => navigate("/home")}
       onOpen={(c) => navigate(`/character/${c.id}`)}

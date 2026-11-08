@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   api,
   streamMessage,
@@ -121,6 +122,7 @@ function TypingRow({ name }: { name: string }) {
 export function ChatScreen({
   me,
   character,
+  chatId: chatIdFromUrl,
   revision,
   onHome,
   onOpen,
@@ -132,6 +134,7 @@ export function ChatScreen({
 }: {
   me: Me;
   character: CharacterView;
+  chatId: string | null;
   revision: number;
   onHome: () => void;
   onOpen: (c: CharacterView) => void;
@@ -141,8 +144,10 @@ export function ChatScreen({
   onLogout: () => void;
   onSettings: () => void;
 }) {
+  const navigate = useNavigate();
   const [chats, setChats] = useState<ChatInfo[]>([]);
-  const [chatId, setChatId] = useState<string | null>(null);
+  // The open chat. Comes from the URL when there is one, otherwise the newest chat.
+  const [chatId, setChatId] = useState<string | null>(chatIdFromUrl);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -168,7 +173,18 @@ export function ChatScreen({
   const canChat = character.canChat;
   const isLimitError = /daily limit/.test(error);
 
-  // Load this character's chats once. Starts the first chat (with its greeting) if there is none.
+  // The chat address for a given chat id
+  const chatPath = (id: string) => `/character/${character.id}/${id}`;
+
+  // Opens a chat and puts it in the URL, so refresh and back/forward keep it
+  function openChatId(id: string) {
+    if (busy) return;
+    setChatId(id);
+    navigate(chatPath(id));
+  }
+
+  // Load this character's chats once. Opens the chat from the URL if it's one of ours,
+  // otherwise the newest chat, and starts a first chat (with its greeting) if there is none.
   // The guard stops React's development mode from running this twice.
   useEffect(() => {
     if (started.current) return;
@@ -181,7 +197,12 @@ export function ChatScreen({
           list = await api.chats(character.id);
         }
         setChats(list);
-        setChatId(list[0]?.id ?? null);
+
+        const fromUrl = chatIdFromUrl ? list.find((c) => c.id === chatIdFromUrl) : undefined;
+        const open = fromUrl ?? list[0];
+        setChatId(open?.id ?? null);
+        // If the URL pointed at a chat we can't see, fix the address to the one we opened
+        if (open && open.id !== chatIdFromUrl) navigate(chatPath(open.id), { replace: true });
       } catch (err) {
         setError(errorText(err));
       } finally {
@@ -189,6 +210,13 @@ export function ChatScreen({
       }
     })();
   }, []);
+
+  // Moving between chats with back and forward changes the URL, so follow it
+  useEffect(() => {
+    if (chatIdFromUrl && chatIdFromUrl !== chatId && chats.some((c) => c.id === chatIdFromUrl)) {
+      setChatId(chatIdFromUrl);
+    }
+  }, [chatIdFromUrl]);
 
   useEffect(() => {
     api
@@ -230,7 +258,7 @@ export function ChatScreen({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [draft]);
 
-  // Close a phone drawer when a chat is opened or a screen changes
+  // Close a phone drawer when the character changes
   useEffect(() => {
     setDrawer(null);
   }, [character.id]);
@@ -309,7 +337,7 @@ export function ChatScreen({
     try {
       const c = await api.createChat(character.id);
       setChats(await api.chats(character.id));
-      setChatId(c.id);
+      openChatId(c.id);
     } catch (err) {
       setError(errorText(err));
     }
@@ -317,7 +345,7 @@ export function ChatScreen({
 
   function pickChat(id: string) {
     // Switching mid-reply would show the wrong conversation, so wait until it finishes
-    if (!busy) setChatId(id);
+    if (!busy) openChatId(id);
   }
 
   async function renameChatItem(c: ChatInfo) {
@@ -344,7 +372,8 @@ export function ChatScreen({
         remaining = await api.chats(character.id);
       }
       setChats(remaining);
-      if (c.id === chatId) setChatId(remaining[0]?.id ?? null);
+      // If the open chat was deleted, move to the next one and update the address
+      if (c.id === chatId && remaining[0]) openChatId(remaining[0].id);
     } catch (err) {
       setError(errorText(err));
     }
