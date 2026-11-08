@@ -4,17 +4,25 @@ A local, self-hosted character chat app, similar to Character.AI. Run it on your
 
 ## Features
 
-- **Characters** with name, description, personality, and greeting. Each character gets its own persona in every request.
+- **Characters** with name, description, definition, personality, greeting, and tags. Each character gets its own persona in every request.
+- **Placeholders:** `{{char}}` and `{{user}}` in greetings and character text, filled in when a chat starts.
 - **Accounts:** an admin plus regular users, each with a username and password. Passwords are stored as salted hashes.
+- **Change password:** from the Settings page, or from the CLI for a forced reset.
 - **Open sign-up (optional):** new people can create their own accounts from the login screen. Turn it on or off in settings.
 - **Visibility:** characters are public (everyone can chat) or private (only the owner can chat; the admin can see that it exists).
 - **Private chats:** each chat belongs to one user. Nobody else can read it, including the admin.
+- **Past chats:** each character lists its chats under it in the sidebar, with titles from the first message. Rename and delete any of them.
+- **Message actions:** edit a message, save and resend it, refresh the newest reply, or delete a single message.
+- **Streaming replies:** words appear as the model writes them, with a fallback for providers that don't stream.
+- **Formatting:** `**bold**` and `*italic*` in messages, without HTML.
+- **Chat parameters:** max response size, temperature, top P, top K, min P, repetition and presence/frequency penalties, and seed. Only the settings you turn on are sent.
 - **Daily message limit:** regular users get a set number of messages per day, shown in the chat. Admins are exempt.
+- **Settings page:** profile, account, chat, display (theme, icon shape, language), and advanced options. It opens as a modal over whatever screen you're on.
+- **Admin panel:** overview, accounts, plans, models, moderation, and system tools. Prototype for now.
 - **Sessions:** logging in gives each device its own token. Admins can see and revoke sessions.
 - **Login protection:** repeated failed logins lock the account or IP for 15 minutes.
 - **Model switching:** pick any model from any configured provider, as `provider/model`.
-- **Chat settings:** temperature, max tokens, and how much history the model sees (default 40 messages).
-- **Web app:** a login screen, a character list in a Character.AI-style layout, and a chat screen with retry. Works on PC and phone browsers.
+- **Web app:** a Character.AI-style layout. The sidebar lists your characters and their chats, the chat screen has a character profile panel on the right, and phones get slide-in drawers for both.
 - **Terminal UI:** a three-panel interface with scrolling, retry, and live message display.
 - **CLI:** manage characters, accounts, sessions, and chats from the terminal.
 
@@ -55,7 +63,7 @@ cd ..\server
 pnpm start
 ```
 
-Open `http://localhost:3000` on this PC. From a phone on the same Wi-Fi, use your PC's address (`ipconfig` shows it), for example `http://192.168.1.14:3000`.
+Open `http://localhost:3000` on this PC. From a phone on the same Wi-Fi, see **Phone access** below.
 
 To work on the web app with hot reload, keep the server running and start the dev server in a second window:
 
@@ -148,6 +156,7 @@ Every route except the public ones requires a login token. Send it as `Authoriza
 | POST | `/api/signup` | Public, when sign-up is open | Create a regular account, returns a token |
 | POST | `/api/logout` | Logged in | End the current session |
 | GET | `/api/me` | Logged in | The current account |
+| POST | `/api/me/password` | Logged in | Change your own password |
 | GET | `/api/me/usage` | Logged in | Messages sent today and the daily limit |
 | GET | `/api/characters` | Logged in | Characters you can see |
 | POST | `/api/characters` | Logged in | Create a character you own |
@@ -156,12 +165,19 @@ Every route except the public ones requires a login token. Send it as `Authoriza
 | DELETE | `/api/characters/:id` | Owner, or admin | Delete a character and its chats |
 | GET | `/api/characters/:characterId/chats` | Logged in | Your chats with a character |
 | POST | `/api/chats` | Logged in | Start a chat (saves the greeting) |
-| GET | `/api/chats/:id/messages` | Chat owner | Chat history |
-| POST | `/api/chats/:id/messages` | Chat owner | Send a message, get a reply |
+| PATCH | `/api/chats/:id` | Chat owner | Rename a chat |
 | DELETE | `/api/chats/:id` | Chat owner | Delete a chat |
+| GET | `/api/chats/:id/messages` | Chat owner | Chat history |
+| POST | `/api/chats/:id/messages` | Chat owner | Send a message, wait for the full reply |
+| POST | `/api/chats/:id/stream` | Chat owner | Send a message, stream the reply (Server-Sent Events) |
+| PATCH | `/api/messages/:id` | Message owner | Edit a message; with `resend`, write a new reply |
+| POST | `/api/messages/:id/regenerate` | Chat owner | Replace the newest assistant reply |
+| DELETE | `/api/messages/:id` | Message owner | Delete one message |
 | GET | `/api/models` | Logged in | Models from all providers |
 
 Login returns the token once. The server stores only a hash of it, so a leaked database can't be used to log in. Tokens expire after 30 days.
+
+Send and stream accept generation settings: `temperature`, `maxTokens`, `topP`, `topK`, `minP`, `repetitionPenalty`, `frequencyPenalty`, `presencePenalty`, and `seed`. Each is optional.
 
 Failed sends return these codes: `429` for the daily limit, `502` when the model call fails. Failed sends save nothing, so retrying can't create duplicate messages.
 
@@ -208,23 +224,9 @@ pnpm cli user sessions [username]
 pnpm cli user revoke <username>
 ```
 
+`reset-password` sets a temporary password. The user is asked to choose their own at next login, and every session is signed out.
+
 Passwords are typed into a hidden prompt, so they don't show on screen or go into shell history.
-
-## Terminal UI
-
-Start it with `pnpm cli ui`.
-
-- **Tab** switches between the character list and the message box.
-- **Up/Down** and **Enter** choose a character from the list.
-- **Enter** sends a message. Your message appears immediately, and the reply follows.
-- **Ctrl+R** retries the last message. If a send fails, your text returns to the box.
-- **Ctrl+N** starts a new chat with the selected character.
-- **PgUp / PgDn** scroll through history.
-- **/model provider/model** switches models.
-- **/temp 0.7** and **/temp reset** set temperature (0 to 2).
-- **/max 300** and **/max reset** set the maximum reply length.
-- **/context 60** and **/context reset** set how many past messages the model sees.
-- **/help** lists the commands. **/exit** or Ctrl+C quits.
 
 ## Web app
 
@@ -232,25 +234,40 @@ Open `http://localhost:3000` (built) or `http://localhost:5173` (dev server).
 
 - **Log in** with your username and password. The token is saved in the browser, so you stay logged in until you log out.
 - **Create an account** from the login screen, when the admin has turned on open sign-up.
-- **Home** shows the characters you can see, split into your characters and other characters, with a search box.
-- **Click a character** to open the chat. The greeting appears first, and your message shows right away while the reply is generated.
+- **Sidebar:** your name, search, Home, Create character, your characters with their chats underneath, and Settings and Log out at the bottom.
+- **Click a character** to open its chat. The greeting appears first, and your message shows right away while the reply is generated.
+- **Chat panel** on the right shows the character's profile, with like, share, and report (prototype), plus its description and tags. Owners see **Edit character** there.
+- **Edit character** has a delete option at the bottom, for owners only.
+- **Message actions:** Edit changes the text. Save & resend writes a new reply and removes the messages after it. Refresh replaces the newest reply. Delete removes one message.
 - **Enter** sends. **Shift+Enter** adds a new line.
-- **Settings** in the chat header sets the model, temperature, and maximum reply length. These are saved in the browser.
-- **New chat** starts a fresh conversation with the character. The dropdown switches between past chats.
-- **Retry** appears when a send fails, and your text is kept in the box.
-- The usage line under the message box shows how many messages you have left today.
-- **Log out** ends this device's session only. Your other devices stay logged in.
+- **Settings** opens as a modal, from the sidebar or the chat's Settings. It has these sections:
+  - **Profile:** username, display name, bio.
+  - **Account:** email and password. Other devices are signed out after a password change.
+  - **Chat:** template, the model set by the admin, word animation, chat parameters, and up to five personas.
+  - **Display:** language, dark or light theme, and round or square icons.
+  - **Advanced:** debug info and clearing browser data.
+  - **Admin panel** (admins only): overview, accounts, plans, models, moderation, and system.
+- **On phones**, the chat bar has a sidebar icon on the left and a character icon on the right. Each opens its panel as a drawer, closed by tapping the dark area.
+
+## Phone access
+
+Your phone can't reach the PC over Wi-Fi if the router isolates devices. That's the usual cause of `ERR_ADDRESS_UNREACHABLE`. Two ways around it:
+
+- **Tailscale (recommended):** install Tailscale on the PC and the phone with the same account. Open `http://<tailscale-address>:3000` on the phone. Use the address the Tailscale app shows, which starts with `100.`. Traffic is encrypted, and it works outside your home.
+- **Same Wi-Fi:** turn off AP isolation (Client Isolation) in the router, then open `http://<PC-address>:3000`. Allow the port through Windows Firewall on Private networks.
+
+Find the PC's address with `ipconfig`. Test the connection from the PC first with `ping <phone-address>`.
 
 ## Tests
 
-Unit tests cover the database, accounts, passwords, sign-up rules, visibility, sessions, login limits, and the daily limit:
+Unit tests cover the database, accounts, passwords, sign-up rules, visibility, sessions, login limits, the daily limit, tags, placeholders, streaming, chat titles, password change, and message actions:
 
 ```powershell
 cd packages\core
 pnpm test
 ```
 
-Expect 24 passing tests.
+Expect 40 passing tests.
 
 End-to-end checks run against a running server. They log in as both accounts, test visibility, permissions, chat privacy, failed sends, and logout, then remove their own test characters. They never call a model.
 
@@ -274,19 +291,22 @@ Expect `21 passed, 0 failed`. Use single quotes around passwords, since PowerShe
 
 Don't run the manual lockout test before the end-to-end script, because it locks the account for 15 minutes.
 
+Run both checks after any server or route change: unit tests first, then the end-to-end script, then commit.
+
 ## Troubleshooting
 
 - **`EADDRINUSE`:** another program uses the port. Change `server.port` in `settings.json`, or find the process with `netstat -ano | findstr :3000`.
 - **`ECONNREFUSED` in the dev server terminal:** the Akeru server isn't running. Start it with `pnpm start` in `apps\server`.
+- **`ERR_ADDRESS_UNREACHABLE` on the phone:** see **Phone access**.
+- **Blank page, or `X is not defined` in the browser console:** a file was edited partly. Replace the whole file, and check that every component you use is imported.
 - **`Multiple exports with the same name`:** a function was pasted twice. Search the file for the name and delete the older copy.
 - **`duplicate column name` on startup:** the migration list was edited out of order. Keep the existing migrations in place, and add new ones only at the end.
 - **`login required` (401):** the request has no token, or the token was revoked. Log in again.
 - **`too many attempts` (429):** wait 15 minutes, or restart the server to clear the limit.
 - **`invalid username or password`:** check the password, or reset it with `pnpm cli user reset-password <name>`.
 - **`daily limit reached`:** the account has used its messages for today. It resets at midnight, or raise `limits.dailyMessages`.
+- **A model error after turning on a parameter:** the provider doesn't support that setting. Turn it off in Settings → Chat → Parameters.
 - **`415 Unsupported Media Type`:** a POST request is missing its `Content-Type`. Add `-ContentType "application/json"` with a body such as `'{}'`.
-- **Blank page on the dev server:** make sure `apps\web\src\main.tsx` exists.
-- **Phone can't connect:** use the PC's Wi-Fi address, and allow Node.js through Windows Firewall on private networks.
 - **Model errors:** check the provider's `baseUrl`, and confirm the model id appears in `pnpm cli models`.
 - **Missing dependencies:** run `pnpm install` from the project root.
 
@@ -297,16 +317,18 @@ akeru/
 ├─ apps/
 │  ├─ server/     Fastify API, login, sessions, serves the web app
 │  │  └─ scripts/e2e.ts   end-to-end checks
-│  ├─ web/        React + Vite web app (login, characters, chat)
+│  ├─ web/        React + Vite web app (login, sidebar, chat, settings, admin)
 │  └─ cli/        Terminal commands and terminal UI (Ink)
 ├─ packages/
-│  └─ core/       Database, accounts, sign-up, sessions, visibility, limits, providers
+│  └─ core/       Database, accounts, sign-up, sessions, visibility, limits, messages, providers
 ├─ config/        settings.example.json (template), settings.json, secrets.json, chars.db
 └─ LIS.md         task list
 ```
 
 ## Status
 
-Working: accounts, open sign-up, sessions, visibility rules, daily limits, the server API, the web login, character list, and chat, the terminal UI, and the CLI.
+Working: accounts, open sign-up, sessions, visibility rules, daily limits, past chats, message actions, streaming, the chat parameter panel, the Settings modal, the character panel, phone drawers, the terminal UI, and the CLI.
 
-Not yet in the web app: creating, editing, and deleting characters, changing passwords, and the admin panel.
+Prototype only: the admin panel and most Settings sections. They save in the browser, and the backend will replace them.
+
+Not yet built: the stop button, the prompt size warning, per-character settings, and the terminal UI's parameters.
