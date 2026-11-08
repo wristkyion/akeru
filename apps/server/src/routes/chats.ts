@@ -10,6 +10,8 @@ import {
   renameOwnChat,
   sendChatMessage,
   startOwnedChat,
+  generateNext,
+  ReplyOptions,
   type Chat,
   type User,
 } from "@chars/core";

@@ -245,7 +245,9 @@ export const api = {
     deleteMessage: (messageId: string) =>
       request<{ ok: boolean }>(`/api/messages/${messageId}`, { method: "DELETE" }),
     regenerate: (messageId: string, body: { model: string; temperature?: number; maxTokens?: number }) =>
-      request<Message>(`/api/messages/${messageId}/regenerate`, { method: "POST", body }),
+    request<Message>(`/api/messages/${messageId}/regenerate`, { method: "POST", body }),
+    generate: (chatId: string, body: { model: string } & GenParams) =>
+      request<Message>(`/api/chats/${chatId}/generate`, { method: "POST", body }),
 };
 
 // Streams a reply. Calls onToken for each piece as it arrives, and resolves when the

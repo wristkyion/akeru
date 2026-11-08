@@ -40,6 +40,21 @@ function SendIcon() {
   );
 }
 
+function GenerateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        d="M4 12h10M10 6l6 6-6 6M19 5v14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function MessageRow({ mine, name, text, sending }: { mine: boolean; name: string; text: string; sending?: boolean }) {
   return (
     <div className={mine ? "msg msg-user" : "msg"}>
@@ -132,6 +147,7 @@ export function ChatScreen({
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [revealing, setRevealing] = useState<Revealing>(null);
   const [working, setWorking] = useState(false);
   // The assistant message being refreshed, shown as typing until its new text is ready
@@ -144,9 +160,14 @@ export function ChatScreen({
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const busy = pending !== null || working || refreshingId !== null || revealing !== null;
+  const busy =
+    pending !== null || working || generating || refreshingId !== null || revealing !== null;
   const canChat = character.canChat;
   const isLimitError = /daily limit/.test(error);
+  // Generate needs the character to have spoken last, and an empty box
+  const lastMessage = messages[messages.length - 1];
+  const canGenerate =
+    canChat && !busy && draft.trim() === "" && lastMessage?.role === "assistant";
 
   // The chat address for a given chat id
   const chatPath = (id: string) => `/character/${character.id}/${id}`;
@@ -305,15 +326,39 @@ export function ChatScreen({
     }
   }
 
-  function submit() {
-    const text = draft.trim();
-    if (text) void send(text);
+  // Generate: ask for one more message from the character, after the latest one
+  async function generate() {
+    if (!chatId || busy || !canGenerate) return;
+    const gen = generationOptions();
+    if (!gen.model) {
+      setError("No model available. Check the provider settings on the server.");
+      return;
+    }
+
+    setError("");
+    setGenerating(true);
+    try {
+      const next = await api.generate(chatId, gen);
+      setGenerating(false);
+      startReveal(next.id, next.content);
+      await refresh(chatId);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // The composer's one button: Send when there's text, Generate when the box is empty
+  function primaryAction() {
+    if (draft.trim()) void send(draft.trim());
+    else void generate();
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      submit();
+      if (draft.trim()) void send(draft.trim());
     }
   }
 
@@ -463,6 +508,8 @@ export function ChatScreen({
         : `${usage.remaining} of ${usage.limit} messages left today`
       : null;
 
+  const hasText = draft.trim().length > 0;
+
   return (
     <div className={drawer ? `app drawer-open drawer-${drawer}` : "app"}>
       <Sidebar
@@ -580,7 +627,7 @@ export function ChatScreen({
                 <TypingRow name={character.name} />
               </>
             )}
-            {working && <TypingRow name={character.name} />}
+            {(working || generating) && <TypingRow name={character.name} />}
             <div ref={endRef} />
           </div>
         </main>
@@ -609,12 +656,13 @@ export function ChatScreen({
               onKeyDown={onKeyDown}
             />
             <button
-              className="send-btn"
-              onClick={submit}
-              disabled={!canChat || busy || !draft.trim()}
-              aria-label="Send"
+              className={hasText ? "send-btn" : "send-btn generate-btn"}
+              onClick={primaryAction}
+              disabled={hasText ? !canChat || busy : !canGenerate}
+              aria-label={hasText ? "Send" : "Generate message"}
+              title={hasText ? "Send" : "Generate another message from the character"}
             >
-              <SendIcon />
+              {hasText ? <SendIcon /> : <GenerateIcon />}
             </button>
           </div>
           <p className="footnote">Remember: everything characters say is made up!</p>

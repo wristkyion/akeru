@@ -138,3 +138,42 @@ export async function resendFromMessage(
     return { user: { ...target, content: clean }, reply };
   })();
 }
+
+// Generate: adds one more message from the character after the latest message.
+// It reacts to what was just said, in the same voice. Counts against the daily limit.
+export async function generateNext(
+  db: DB,
+  registry: Registry,
+  chatId: string,
+  opts: ReplyOptions,
+): Promise<Message> {
+  const chat = assertCanSend(db, opts.actor, chatId);
+  const all = listMessages(db, chat.id);
+  const last = all[all.length - 1];
+  // Generate only makes sense after the character has spoken
+  if (!last || last.role !== "assistant") {
+    throw new Error("the character has to speak first before you can generate another message");
+  }
+
+  if (opts.dailyLimit) assertWithinLimit(db, opts.actor, opts.dailyLimit);
+
+  const character = getCharacter(db, chat.characterId);
+  if (!character) throw new Error("character not found");
+
+  const recent = all.slice(-opts.historyLimit).map((m) => ({ role: m.role, content: m.content }));
+  const messages = [
+    { role: "system" as const, content: systemPrompt(character, opts.user) },
+    ...recent,
+    {
+      role: "system" as const,
+      content:
+        `Write the next message from ${character.name} only. It should react to what was just said ` +
+        `and move the conversation on, in ${character.name}'s own voice and with the same length habits ` +
+        `as the earlier replies. Don't repeat what was already said, and don't write lines for ` +
+        `${opts.user?.name ?? "the user"}. Output only the message, with no name and no label.`,
+    },
+  ];
+
+  const text = await completeWithRef(registry, opts.model, messages, opts.options, opts.onToken);
+  return addMessage(db, chat.id, "assistant", text);
+}

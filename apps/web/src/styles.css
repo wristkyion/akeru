@@ -602,3 +602,7 @@ html[data-shape="square"] .avatar-sm { border-radius: 12px; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Generate button: shown when the box is empty, next to the text box */
+.generate-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+.generate-btn:hover:not(:disabled) { background: var(--hover); }
+.generate-btn:disabled { background: var(--panel); color: var(--muted); opacity: 0.5; }

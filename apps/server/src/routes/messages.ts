@@ -6,6 +6,7 @@ import {
   editOwnMessage,
   regenerateReply,
   resendFromMessage,
+  generateNext,
   type ReplyOptions,
   type User,
 } from "@chars/core";
@@ -84,6 +85,24 @@ export async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
+  // Generate: adds one more message from the character after the latest one
+  app.post<{ Params: { id: string } }>("/api/chats/:id/generate", async (req, reply) => {
+    const parsed = GenerateBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+
+    const { model, temperature, maxTokens } = parsed.data;
+    try {
+      return await generateNext(
+        ctx.db,
+        ctx.registry,
+        req.params.id,
+        optionsFor(req.actor as User, parsed.data),
+      );
+    } catch (err) {
+      return fail(reply, err);
+    }
+  });
+  
   app.delete<{ Params: { id: string } }>("/api/messages/:id", async (req, reply) =>
     deleteOwnMessage(ctx.db, req.actor as User, req.params.id)
       ? { ok: true }
