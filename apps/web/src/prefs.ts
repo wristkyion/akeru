@@ -55,7 +55,7 @@ export interface Prefs {
   profile: { username: string; displayName: string; bio: string };
   account: { email: string };
   display: { language: "en" | "id" | "ja"; theme: Theme; shape: "round" | "square" };
-  chat: { template: string; animation: "instant" | "word" | "smooth"; personas: Persona[] };
+  chat: { template: string; animation: "instant" | "smooth"; personas: Persona[] };
   advanced: { debug: boolean };
   admin: AdminState;
 }
@@ -78,7 +78,7 @@ function defaults(): Prefs {
     profile: { username: "", displayName: "", bio: "" },
     account: { email: "" },
     display: { language: "en", theme: "dark", shape: "round" },
-    chat: { template: "default", animation: "word", personas: [] },
+    chat: { template: "default", animation: "smooth", personas: [] },
     advanced: { debug: false },
     admin: {
       model: "",
@@ -118,7 +118,12 @@ export function loadPrefs(): Prefs {
       profile: { ...base.profile, ...saved.profile },
       account: { ...base.account, ...saved.account },
       display: { ...base.display, ...saved.display },
-      chat: { ...base.chat, ...saved.chat },
+      chat: {
+        ...base.chat,
+        ...saved.chat,
+        // Anything that isn't "instant" (including the old "word") becomes "smooth"
+        animation: saved.chat?.animation === "instant" ? "instant" : "smooth",
+      },
       advanced: { ...base.advanced, ...saved.advanced },
       admin: { ...base.admin, ...saved.admin },
     };

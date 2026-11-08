@@ -267,12 +267,14 @@ export function SettingsPage({
                 <Row label="Model" hint="Set by the admin for everyone. Users can't switch models.">
                   <input value={prefs.admin.model || "Default"} disabled />
                 </Row>
-                <Row label="Word animation" hint="How replies appear while they're being written.">
+                <Row
+                  label="Reply animation"
+                  hint="Smooth reveals each reply word by word, with a fade. Instant shows it all at once."
+                >
                   <Seg
                     value={prefs.chat.animation}
                     options={[
                       { value: "instant", label: "Instant" },
-                      { value: "word", label: "Word by word" },
                       { value: "smooth", label: "Smooth" },
                     ]}
                     onChange={(v) => set("chat", { ...prefs.chat, animation: v })}

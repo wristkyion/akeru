@@ -596,3 +596,9 @@ html[data-shape="square"] .avatar-sm { border-radius: 12px; }
   .two-col { grid-template-columns: 1fr; }
 }
 .notfound { text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+/* Smooth reveal: each word fades in as it appears */
+.w-in { animation: w-fade 0.45s ease both; }
+@keyframes w-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

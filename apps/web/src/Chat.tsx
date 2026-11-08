@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   api,
-  streamMessage,
   type CharacterView,
   type ChatInfo,
   type Me,
@@ -12,13 +11,19 @@ import {
 import { CharacterPanel } from "./CharacterPanel";
 import { SETTINGS_KEY, loadSettings, sendableParams, type ChatSettings } from "./ChatSettings";
 import { DeleteDialog } from "./DeleteDialog";
+import { Icon } from "./Icons";
 import { Formatted } from "./Markdown";
 import { MessageItem } from "./MessageItem";
-import { Icon } from "./Icons";
+import { loadPrefs } from "./prefs";
+import { RevealRow } from "./RevealRow";
+import type { RevealMode } from "./reveal";
 import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
+
+// A reply that is being revealed word by word
+type Revealing = { id: string; text: string; mode: RevealMode } | null;
 
 function SendIcon() {
   return (
@@ -35,17 +40,7 @@ function SendIcon() {
   );
 }
 
-function MessageRow({
-  mine,
-  name,
-  text,
-  sending,
-}: {
-  mine: boolean;
-  name: string;
-  text: string;
-  sending?: boolean;
-}) {
+function MessageRow({ mine, name, text, sending }: { mine: boolean; name: string; text: string; sending?: boolean }) {
   return (
     <div className={mine ? "msg msg-user" : "msg"}>
       {!mine && (
@@ -72,26 +67,6 @@ function MessageRow({
         </div>
         <div className="bubble">
           <Formatted text={text} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StreamingRow({ name, text }: { name: string; text: string }) {
-  return (
-    <div className="msg">
-      <span className="avatar msg-avatar" style={avatarStyle(name)}>
-        {initials(name)}
-      </span>
-      <div className="msg-body">
-        <div className="msg-name">
-          <span>{name}</span>
-          <span className="badge">AI</span>
-        </div>
-        <div className="bubble">
-          <Formatted text={text} />
-          <span className="caret" />
         </div>
       </div>
     </div>
@@ -146,8 +121,8 @@ export function ChatScreen({
 }) {
   const navigate = useNavigate();
   const [chats, setChats] = useState<ChatInfo[]>([]);
-  // The open chat. Comes from the URL when there is one, otherwise the newest chat.
-  const [chatId, setChatId] = useState<string | null>(chatIdFromUrl);
+  // The open chat. Set after the chat list loads, so an invalid address is never requested.
+  const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -157,9 +132,9 @@ export function ChatScreen({
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
-  const [streamText, setStreamText] = useState("");
+  const [revealing, setRevealing] = useState<Revealing>(null);
   const [working, setWorking] = useState(false);
-  // The assistant message being refreshed, shown as typing in place
+  // The assistant message being refreshed, shown as typing until its new text is ready
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [lastText, setLastText] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -169,7 +144,7 @@ export function ChatScreen({
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const busy = pending !== null || working || refreshingId !== null;
+  const busy = pending !== null || working || refreshingId !== null || revealing !== null;
   const canChat = character.canChat;
   const isLimitError = /daily limit/.test(error);
 
@@ -183,8 +158,15 @@ export function ChatScreen({
     navigate(chatPath(id));
   }
 
-  // Load this character's chats once. Opens the chat from the URL if it's one of ours,
-  // otherwise the newest chat, and starts a first chat (with its greeting) if there is none.
+  // Starts the word-by-word reveal for a reply. Instant mode skips it.
+  function startReveal(id: string, text: string) {
+    const mode = loadPrefs().chat.animation;
+    if (mode === "instant") return;
+    setRevealing({ id, text, mode });
+  }
+
+  // Load this character's chats once. Opens the chat from the address if it's one of ours.
+  // If the address names a chat that isn't ours, show "Invalid chat" and open the newest one.
   // The guard stops React's development mode from running this twice.
   useEffect(() => {
     if (started.current) return;
@@ -201,8 +183,14 @@ export function ChatScreen({
         const fromUrl = chatIdFromUrl ? list.find((c) => c.id === chatIdFromUrl) : undefined;
         const open = fromUrl ?? list[0];
         setChatId(open?.id ?? null);
-        // If the URL pointed at a chat we can't see, fix the address to the one we opened
-        if (open && open.id !== chatIdFromUrl) navigate(chatPath(open.id), { replace: true });
+
+        if (chatIdFromUrl && !fromUrl) {
+          setError("Invalid chat. Opened your latest chat instead.");
+        }
+        // Keep the address in step with the chat that's actually open
+        if (open && open.id !== chatIdFromUrl) {
+          navigate(chatPath(open.id), { replace: true });
+        }
       } catch (err) {
         setError(errorText(err));
       } finally {
@@ -234,7 +222,7 @@ export function ChatScreen({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, pending, streamText]);
+  }, [messages, pending]);
 
   // Keep the chat settings in step with what the Settings page saves
   useEffect(() => {
@@ -294,29 +282,27 @@ export function ChatScreen({
     setError("");
     setLastText(text);
     setDraft("");
-    setStreamText("");
     setPending(text);
 
+    let reply: Message;
     try {
-      await streamMessage(chatId, { content: text, ...gen }, (token) =>
-        setStreamText((s) => s + token),
-      );
+      // The whole reply comes back at once. The word-by-word look is added in the browser.
+      reply = await api.send(chatId, { content: text, ...gen });
     } catch (err) {
       // Nothing was saved. Put the text back so it can be sent again
       setDraft(text);
       setError(errorText(err));
-      setStreamText("");
       setPending(null);
       return;
     }
 
+    setPending(null);
+    startReveal(reply.id, reply.content);
     try {
       await refresh(chatId);
     } catch (err) {
       setError(errorText(err));
     }
-    setStreamText("");
-    setPending(null);
   }
 
   function submit() {
@@ -380,12 +366,35 @@ export function ChatScreen({
   }
 
   // Runs one action that changes messages, then reloads the chat
-  async function runWork(task: () => Promise<unknown>, typing: boolean) {
+  async function runWork(task: () => Promise<unknown>) {
     if (!chatId || busy) return;
     setError("");
-    setWorking(typing);
     try {
       await task();
+      await refresh(chatId);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  // Edit & resend: write a new reply, then reveal it like a new message
+  async function resendEdit(m: Message, text: string) {
+    if (!chatId || busy) return;
+    const gen = generationOptions();
+    if (!gen.model) {
+      setError("No model available. Check the provider settings on the server.");
+      return;
+    }
+
+    setError("");
+    setWorking(true);
+    try {
+      const out = (await api.editMessage(m.id, text, { resend: true, ...gen })) as {
+        user: Message;
+        reply: Message;
+      };
+      setWorking(false);
+      startReveal(out.reply.id, out.reply.content);
       await refresh(chatId);
     } catch (err) {
       setError(errorText(err));
@@ -395,18 +404,14 @@ export function ChatScreen({
   }
 
   function saveEdit(m: Message, text: string, resend: boolean) {
-    if (!resend) {
-      void runWork(() => api.editMessage(m.id, text), false);
+    if (resend) {
+      void resendEdit(m, text);
       return;
     }
-    const gen = generationOptions();
-    if (!gen.model) {
-      setError("No model available. Check the provider settings on the server.");
-      return;
-    }
-    void runWork(() => api.editMessage(m.id, text, { resend: true, ...gen }), true);
+    void runWork(() => api.editMessage(m.id, text));
   }
 
+  // Refresh: write a new reply to the newest assistant message, then reveal it in place
   async function refreshReply(m: Message) {
     if (!chatId || busy) return;
     const gen = generationOptions();
@@ -418,7 +423,10 @@ export function ChatScreen({
     setError("");
     setRefreshingId(m.id);
     try {
-      await api.regenerate(m.id, gen);
+      const fresh = await api.regenerate(m.id, gen);
+      // The typing dots give way to the reveal, in the same place
+      setRefreshingId(null);
+      startReveal(m.id, fresh.content);
       await refresh(chatId);
     } catch (err) {
       setError(errorText(err));
@@ -429,8 +437,24 @@ export function ChatScreen({
 
   function deleteMessage(m: Message) {
     if (!window.confirm("Delete this message?")) return;
-    void runWork(() => api.deleteMessage(m.id), false);
+    void runWork(() => api.deleteMessage(m.id));
   }
+
+  // A reply being revealed may not be in the saved list yet. Show it at the end
+  // with the same id, so it stays in place once the saved message arrives.
+  const rows: Message[] =
+    revealing && !messages.some((m) => m.id === revealing.id)
+      ? [
+          ...messages,
+          {
+            id: revealing.id,
+            chatId: chatId ?? "",
+            role: "assistant",
+            content: revealing.text,
+            createdAt: Date.now(),
+          },
+        ]
+      : messages;
 
   const usageText =
     usage && usage.limit !== null && usage.remaining !== null
@@ -514,14 +538,27 @@ export function ChatScreen({
               </p>
             )}
 
-            {messages.map((m, i) => {
-              // The message being refreshed shows the typing dots where its text was
+            {rows.map((m, i) => {
+              // The message being refreshed shows the typing dots until its new text is ready
               if (m.id === refreshingId) {
                 return <TypingRow key={m.id} name={character.name} />;
               }
 
-              const newest = i === messages.length - 1;
-              const answersAUserMessage = i > 0 && messages[i - 1].role === "user";
+              // The reply being revealed, bubble by bubble
+              if (revealing && m.id === revealing.id) {
+                return (
+                  <RevealRow
+                    key={m.id}
+                    name={character.name}
+                    text={revealing.text}
+                    mode={revealing.mode}
+                    onDone={() => setRevealing(null)}
+                  />
+                );
+              }
+
+              const newest = i === rows.length - 1;
+              const answersAUserMessage = i > 0 && rows[i - 1].role === "user";
               return (
                 <MessageItem
                   key={m.id}
@@ -540,11 +577,7 @@ export function ChatScreen({
             {pending && (
               <>
                 <MessageRow mine name={me.displayName} text={pending} sending />
-                {streamText ? (
-                  <StreamingRow name={character.name} text={streamText} />
-                ) : (
-                  <TypingRow name={character.name} />
-                )}
+                <TypingRow name={character.name} />
               </>
             )}
             {working && <TypingRow name={character.name} />}

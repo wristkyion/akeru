@@ -24,21 +24,24 @@
 ### Chat
 - [x] Shared send function (`sendChatMessage`) used by server, CLI, UI, and web
 - [x] Persona built from character fields and account profile
+- [x] Persona tells the character not to write the user's lines or actions
 - [x] Failed sends save nothing, so no duplicate messages
 - [x] Context limit (`historyLimit`, default 40), set in settings
 - [x] Daily message limit per user, with usage shown in the web chat
 - [x] Admins are exempt from the daily limit
-- [x] Streaming replies word by word in the web chat, with a fallback for providers that don't stream
 - [x] Bold (`**text**`) and italic (`*text*`, `_text_`) rendering, without HTML
 - [x] Past chats listed under each character in the sidebar, with titles from the first message
 - [x] Rename and delete a chat from the sidebar
 - [x] Deleting the last chat starts a fresh one
 - [x] Edit a message (text only, no model call)
 - [x] Save & resend: edit your message and write a new reply, removing the messages after it
-- [x] Refresh: write a new reply to the newest assistant message, with the typing indicator in its place
+- [x] Refresh: write a new reply to the newest assistant message
 - [x] Delete a single message
 - [x] Chat parameters: max response size, temperature, top P, top K, min P, repetition and presence/frequency penalties, seed (each one only sent when turned on)
 - [x] Parameters live in the Settings page, not in the chat
+- [x] Word-by-word reveal in the browser, for new replies, refresh, and save & resend (no model streaming needed)
+- [x] Reveal options: Instant or Smooth, with a fade on each word
+- [x] Reply animation setting in Settings → Chat
 
 ### Accounts and access
 - [x] User accounts with admin and user roles
@@ -70,6 +73,15 @@
 - [x] Production build served from the server on port 3000
 - [x] Error codes: 401 not logged in, 403 not allowed, 404 not found, 409 name taken, 429 locked out or daily limit, 502 model failed
 
+### Web app: routing
+- [x] URL routes with React Router: `/home`, `/search?q=`, `/character/new`, `/character/:id`, `/character/:id/edit`, `/character/:id/:chatId`
+- [x] `/` redirects to `/home`
+- [x] Refresh keeps the same screen, character, and chat
+- [x] Browser back and forward move between chats
+- [x] Search text lives in the URL
+- [x] Character not found screen for missing or private characters
+- [x] Invalid chat address shows a message and opens the newest chat
+
 ### Web app: layout
 - [x] Character-style layout: one sidebar with your name, search, Home, Create, characters, and their chats
 - [x] Sidebar footer: Settings and Log out (theme switch moved into Settings)
@@ -81,7 +93,7 @@
 - [x] Light and dark themes, switched in Settings
 
 ### Web app: chat
-- [x] Chat screen: greeting, your message shown right away, typing indicator, streaming
+- [x] Chat screen: greeting, your message shown right away, typing indicator
 - [x] Typing indicator shows in place while refreshing a reply
 - [x] Retry on failed send, with text kept in the box
 - [x] Enter sends, Shift+Enter adds a line
@@ -92,7 +104,7 @@
 - [x] Settings sections: Profile, Account, Chat, Display, Advanced, and Admin (admins only)
 - [x] Profile: username, display name, bio
 - [x] Account: email, change password, delete account (disabled until the backend)
-- [x] Chat: template, model (set by admin), word animation, parameters, up to five personas
+- [x] Chat: template, model (set by admin), reply animation, parameters, up to five personas
 - [x] Display: language (saved only), theme, round or square icons
 - [x] Advanced: debug info, clear browser data
 - [x] Admin panel prototype: overview with a 7-day chart, accounts, plans, models with a provider check, moderation (reports and blocked words), and system tools with an activity log
@@ -125,10 +137,27 @@
 
 ## Next
 
+### Chat: human-style replies (current focus)
+- [ ] Generate button in the composer: empty field shows **Generate**, typed text shows **Send**
+- [ ] Server route `POST /api/chats/:id/generate`: saves one more short assistant message after the latest reply
+- [ ] Generated message uses the same persona, history, and daily limit as a normal reply
+- [ ] Generated messages appear as separate bubbles, each with Edit, Refresh, and Delete
+- [ ] Generate can be pressed again to add more messages, up to a set limit per turn
+- [ ] Replies are written as one short message at a time, so the Generate button adds the rest
+- [ ] Typing pause between generated bubbles, so they feel like a person texting
+- [ ] Generate stays hidden while a reply is still revealing or sending
+
+### Chat: quality
+- [ ] Stop button for streaming replies (cancels the request and saves the partial text, marked as cut off)
+- [ ] Context size shown in the parameters panel (currently the server's message count)
+- [ ] Prompt size warning when definition and personality are large for the chosen model
+- [ ] Example dialogue as its own field
+- [ ] Per-character model and parameters (saved with the character)
+
 ### Settings and admin (backend)
 - [ ] Profile: username uniqueness check on the server, display name and bio saved per account
 - [ ] Account: email saved and verified, delete account
-- [ ] Chat: default template and word animation saved per account
+- [ ] Chat: default template and reply animation saved per account
 - [ ] Parameters saved per account on the server, not just in the browser
 - [ ] Personas saved per account on the server, and chosen per chat
 - [ ] Display preferences saved per account (theme, shape, language)
@@ -143,22 +172,16 @@
 - [ ] Admin: every admin action recorded in an audit log on the server
 - [ ] Advanced: export chats as JSON
 
-### Web: chat
-- [ ] Stop button for streaming replies (cancels the request and saves the partial text, marked as cut off)
-- [ ] Refresh and Save & resend stream like normal sends
+### Web: character panel
 - [ ] Like count stored per character and per user
 - [ ] Report sent to the server (currently a prototype)
 - [ ] Share link opens the character (currently only copies the link)
 - [ ] Show a character's name on the home card when it's private
-- [ ] Prompt tab in the chat settings: a per-chat system prompt override
-- [ ] Other tab in the chat settings: extra options
 - [ ] Mobile check on a real phone, including the built app and both drawers
 
-### Characters and chat
-- [ ] Prompt size warning when definition and personality are large for the chosen model
-- [ ] Example dialogue as its own field
-- [ ] Per-character model and parameters (saved with the character)
-- [ ] Context size shown in the parameters panel (currently the server's message count)
+### Web: other
+- [ ] Prompt tab in the chat settings: a per-chat system prompt override
+- [ ] Other tab in the chat settings: extra options
 
 ### Terminal and CLI
 - [ ] `--definition` and `--tags` flags on `create` and `edit`
@@ -174,6 +197,7 @@
 
 ### Housekeeping
 - [ ] Back up `config\chars.db` on a schedule (script or documented steps)
+- [ ] Merge the `routing` branch into `main` once the chat work is tested
 - [ ] Remove unused CSS: the old `.chat-head`, `.sidebar`, and `.cp-hero` rules, if any remain
 - [ ] Remove the older `packages/core/src/providers/provider.test.ts` if it duplicates the new tests
 
@@ -202,9 +226,10 @@
 - Open sign-up lets anyone who can reach the server create an account. Turn it off in `settings.json` if the server is shared beyond your household.
 - Daily limits count messages, not cost.
 - Long definitions and personalities can push older chat history out of small local models' context windows, without a warning.
-- Some providers ignore streaming, or reject parameters they don't support, so a setting turned on can cause an error for that provider.
+- Some providers ignore parameters they don't support, so a setting turned on can cause an error for that provider.
 - Save & resend removes the messages after the edited one. This is intentional, but it can't be undone.
-- Refresh and Save & resend wait for the full reply instead of streaming.
+- Models sometimes write lines for the user even with the persona rule, especially smaller ones.
+- Multi-line replies currently arrive as one bubble with many lines. The Generate feature is meant to split them into separate messages.
 - The admin panel, the Profile, Account, Chat, and Display settings, and the like and report buttons save only in the browser. Nothing is enforced on the server yet.
 - Clearing browser data resets the admin panel's prototype data as well.
 - `/api/models` is slow because it fetches from every provider on each call.

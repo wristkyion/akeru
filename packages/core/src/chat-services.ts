@@ -22,6 +22,8 @@ export function systemPrompt(c: Character, user?: UserProfile): string {
     user?.persona && `About ${user.name}: ${fill(user.persona)}`,
     `Reply as ${c.name} would, in first person, with natural dialogue. Use *asterisks* for short actions when they fit.`,
     "Keep replies conversational and a natural length. React to what the user just said and remember earlier messages.",
+    `Write only ${c.name}'s words and actions. Never write lines or actions for ${names.user}, and stop when it is their turn to speak.`,
+    `You may split a reply into up to three short messages, like texts sent one after another. Put ||| between them, and only when a character would naturally send several in a row. Otherwise write one message with no |||.`,
     "Do not add disclaimers or out-of-character notes, and do not talk about the underlying model or provider.",
   ];
   return lines.filter(Boolean).join("\n");

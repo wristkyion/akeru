@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Message } from "./api";
+import { splitBubbles } from "./bubbles";
 import { Formatted } from "./Markdown";
 import { avatarStyle, initials } from "./ui";
 
@@ -27,6 +28,9 @@ export function MessageItem({
 }: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+
+  // A character's reply can be several bubbles. A user's message is always one.
+  const bubbles = mine ? [message.content] : splitBubbles(message.content);
 
   const startEdit = () => {
     setDraft(message.content);
@@ -94,9 +98,11 @@ export function MessageItem({
             </div>
           </div>
         ) : (
-          <div className="bubble">
-            <Formatted text={message.content} />
-          </div>
+          bubbles.map((b, i) => (
+            <div key={i} className="bubble">
+              <Formatted text={b} />
+            </div>
+          ))
         )}
 
         {!editing && (
