@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, tokenStore, type Me } from "./api";
 
 function waitText(seconds: number | null): string {
@@ -7,17 +8,32 @@ function waitText(seconds: number | null): string {
   return `${Math.ceil(seconds / 60)} minutes`;
 }
 
-export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [signupOpen, setSignupOpen] = useState(false);
+// Where to go after login: the page the user asked for, if it's inside the app
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/home";
+  if (raw.startsWith("/login") || raw.startsWith("/signup")) return "/home";
+  return raw;
+}
+
+export function LoginScreen({
+  mode,
+  onLoggedIn,
+}: {
+  mode: "login" | "signup";
+  onLoggedIn: (me: Me) => void;
+}) {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [signupOpen, setSignupOpen] = useState(false);
 
   const isSignup = mode === "signup";
+  const next = safeNext(params.get("next"));
 
   useEffect(() => {
     api
@@ -25,13 +41,6 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
       .then((c) => setSignupOpen(c.signup))
       .catch(() => setSignupOpen(false));
   }, []);
-
-  function switchMode(next: "login" | "signup") {
-    setMode(next);
-    setError("");
-    setPassword("");
-    setConfirm("");
-  }
 
   function explain(err: unknown): string {
     if (err instanceof ApiError) {
@@ -68,6 +77,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
         : await api.login(name, password);
       tokenStore.set(result.token);
       onLoggedIn(result.user);
+      navigate(next, { replace: true });
     } catch (err) {
       setError(explain(err));
       setPassword("");
@@ -76,6 +86,10 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
       setBusy(false);
     }
   }
+
+  // The link under the card switches between the two pages, keeping the "next" address
+  const other = isSignup ? "/login" : "/signup";
+  const otherQuery = params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : "";
 
   return (
     <div className="login">
@@ -138,7 +152,11 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
           </label>
         )}
 
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
 
         <button className="btn-primary" disabled={busy}>
           {busy ? "Please wait…" : isSignup ? "Create account" : "Log in"}
@@ -150,7 +168,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
             <button
               type="button"
               className="link"
-              onClick={() => switchMode(isSignup ? "login" : "signup")}
+              onClick={() => navigate(`${other}${otherQuery}`)}
             >
               {isSignup ? "Log in" : "Create an account"}
             </button>

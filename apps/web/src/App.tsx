@@ -201,6 +201,9 @@ function ChatRoute(props: Shared) {
   );
 }
 
+// Pages anyone can open without being logged in
+const PUBLIC_PATHS = ["/login", "/signup", "/error"];
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -266,7 +269,7 @@ export default function App() {
     setMe(null);
     setShowPassword(false);
     setSettingsOpen(false);
-    navigate("/home", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   const changed = () => setRevision((r) => r + 1);
@@ -280,12 +283,29 @@ export default function App() {
 
   if (checking) return <Splash />;
 
-  // Logged out: the login screen shows at whatever URL was opened, so a shared link still works after login
-  if (!me) return <LoginScreen onLoggedIn={setMe} />;
+  const path = location.pathname;
+  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+
+  // Logged out: only the public pages are open. Anything else goes to login, remembering the address.
+  if (!me) {
+    if (path === "/signup") {
+      // The sign-up page is only open while the server allows it; otherwise it goes to login
+      return <SignupRoute onLoggedIn={setMe} />;
+    }
+    if (path === "/login") return <LoginScreen mode="login" onLoggedIn={setMe} />;
+    if (path === "/error") return <Navigate to="/login" replace />;
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
+  }
+
+  // Logged in: the login and sign-up pages are not needed, so go home
+  if (path === "/login" || path === "/signup") {
+    return <Navigate to="/home" replace />;
+  }
 
   // The maintenance check: the switch is on and this account isn't an admin, so send it to the page
   const blocked = maintenance.on && me.role !== "admin";
-  if (blocked && !location.pathname.startsWith("/error")) {
+  if (blocked && path !== "/error") {
     return <Navigate to="/error?type=maintenance" replace />;
   }
 
@@ -341,4 +361,20 @@ export default function App() {
       )}
     </>
   );
+}
+
+// /signup: shows the form while sign-up is open, and sends people to /login when it's closed
+function SignupRoute({ onLoggedIn }: { onLoggedIn: (me: Me) => void }) {
+  const [state, setState] = useState<"checking" | "open" | "closed">("checking");
+
+  useEffect(() => {
+    api
+      .publicConfig()
+      .then((c) => setState(c.signup ? "open" : "closed"))
+      .catch(() => setState("closed"));
+  }, []);
+
+  if (state === "checking") return <Splash />;
+  if (state === "closed") return <Navigate to="/login" replace />;
+  return <LoginScreen mode="signup" onLoggedIn={onLoggedIn} />;
 }
