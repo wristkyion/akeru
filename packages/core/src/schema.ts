@@ -90,6 +90,13 @@ const MIGRATIONS: string[] = [
     WHERE title = ''
       AND EXISTS (SELECT 1 FROM messages m2 WHERE m2.chat_id = chats.id AND m2.role = 'user');
   `,
+  // 6: admin-controlled generation settings, shared by every user
+  `
+    CREATE TABLE IF NOT EXISTS server_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `,
 ];
 
 function runMigrations(db: DB): void {

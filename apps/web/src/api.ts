@@ -247,8 +247,25 @@ export const api = {
     regenerate: (messageId: string, body: { model: string; temperature?: number; maxTokens?: number }) =>
     request<Message>(`/api/messages/${messageId}/regenerate`, { method: "POST", body }),
     generate: (chatId: string, body: { model: string } & GenParams) =>
-      request<Message>(`/api/chats/${chatId}/generate`, { method: "POST", body }),
+    request<Message>(`/api/chats/${chatId}/generate`, { method: "POST", body }),
+    getPolicy: () => request<GenerationPolicy>("/api/generation-policy"),
+    savePolicy: (policy: GenerationPolicy) =>
+      request<GenerationPolicy>("/api/generation-policy", { method: "PUT", body: policy }),
 };
+
+export interface GenerationPolicy {
+  contextMessages: number;
+  maxTokens: number;
+  temperature: number;
+  topP: number;
+  topK: number;
+  minP: number;
+  repetitionPenalty: number;
+  frequencyPenalty: number;
+  presencePenalty: number;
+  seed: number | null;
+  enabled: Record<string, boolean>;
+}
 
 // Streams a reply. Calls onToken for each piece as it arrives, and resolves when the
 // full message has been saved on the server.

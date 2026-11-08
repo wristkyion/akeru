@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type ModelGroup } from "./api";
+import { PolicyCard } from "./PolicyCard";
 import type { AdminState, AdminUser, Plan, Report } from "./prefs";
 
 type Tab = "overview" | "accounts" | "plans" | "models" | "moderation" | "system";
@@ -497,6 +498,8 @@ export function AdminPanel({
       {/* ---------- Models ---------- */}
       {tab === "models" && (
         <>
+          <PolicyCard />
+
           <section className="set-card">
             <h3>Default model</h3>
             <p className="muted small">Users can't switch models. Every chat uses this one.</p>

@@ -8,6 +8,9 @@ import {
   getUsage,
   revokeSession,
   signUp,
+  getGenerationPolicy,
+  saveGenerationPolicy,
+  type GenerationPolicy,
   type User,
 } from "@chars/core";
 import type { AppContext } from "../context.js";
@@ -103,6 +106,34 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
     getUsage(ctx.db, req.actor as User, ctx.settings.limits.dailyMessages),
   );
 
+  const PolicyBody = z.object({
+    contextMessages: z.number().int().min(2).max(500),
+    maxTokens: z.number().int().min(1).max(8192),
+    temperature: z.number().min(0).max(2),
+    topP: z.number().min(0).max(1),
+    topK: z.number().int().min(0).max(200),
+    minP: z.number().min(0).max(1),
+    repetitionPenalty: z.number().min(0).max(2),
+    frequencyPenalty: z.number().min(-2).max(2),
+    presencePenalty: z.number().min(-2).max(2),
+    seed: z.number().int().min(0).nullable(),
+    enabled: z.record(z.string(), z.boolean()),
+  });
+
+  // Everyone can read the policy, so the chat can show what's in effect
+  app.get("/api/generation-policy", async () => getGenerationPolicy(ctx.db));
+
+  // Only the admin can change it
+  app.put("/api/generation-policy", async (req, reply) => {
+    if ((req.actor as User).role !== "admin") {
+      return reply.code(403).send({ error: "only the admin can change generation settings" });
+    }
+    const parsed = PolicyBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+    saveGenerationPolicy(ctx.db, parsed.data as GenerationPolicy);
+    return getGenerationPolicy(ctx.db);
+  });
+  
   app.get("/api/public-config", async () => ({
     signup: ctx.settings.auth.signup === "open",
   }));

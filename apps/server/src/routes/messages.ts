@@ -7,6 +7,8 @@ import {
   regenerateReply,
   resendFromMessage,
   generateNext,
+  getGenerationPolicy,
+  policyToOptions,
   type ReplyOptions,
   type User,
 } from "@chars/core";
@@ -37,14 +39,17 @@ function fail(reply: FastifyReply, err: unknown) {
 }
 
 export async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
-  const optionsFor = (actor: User, body: { model: string } & GenParamsInput): ReplyOptions => ({
-    model: body.model,
-    options: toOptions(body),
-    historyLimit: ctx.settings.chat.historyLimit,
-    user: { name: actor.displayName, persona: actor.persona },
-    actor,
-    dailyLimit: ctx.settings.limits.dailyMessages,
-  });
+  const optionsFor = (actor: User, body: { model: string } & GenParamsInput): ReplyOptions => {
+    const policy = getGenerationPolicy(ctx.db);
+    return {
+      model: body.model,
+      options: policyToOptions(policy),
+      historyLimit: policy.contextMessages,
+      user: { name: actor.displayName, persona: actor.persona },
+      actor,
+      dailyLimit: ctx.settings.limits.dailyMessages,
+    };
+  };
 
   // Plain edit: change the text. With resend: true, also write a new reply to this user message.
   app.patch<{ Params: { id: string } }>("/api/messages/:id", async (req, reply) => {
