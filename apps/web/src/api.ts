@@ -28,10 +28,75 @@ export interface CharacterView {
   canDelete: boolean;
 }
 
+export interface CharacterInput {
+  name: string;
+  description?: string;
+  definition?: string;
+  personality?: string;
+  greeting?: string;
+  tags?: string[];
+  visibility?: "public" | "private";
+}
+
 export interface LoginResult {
   token: string;
   sessionId: string;
   user: Me;
+}
+
+export interface ChatInfo {
+  id: string;
+  characterId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  role: "system" | "user" | "assistant";
+  content: string;
+  createdAt: number;
+}
+
+export interface Usage {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+}
+
+export interface ModelGroup {
+  provider: string;
+  models: string[];
+  error?: string;
+}
+
+// Generation settings. Only the ones the user turned on are sent.
+export interface GenParams {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  minP?: number;
+  repetitionPenalty?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
+}
+
+export interface GenerationPolicy {
+  contextMessages: number;
+  maxTokens: number;
+  temperature: number;
+  topP: number;
+  topK: number;
+  minP: number;
+  repetitionPenalty: number;
+  frequencyPenalty: number;
+  presencePenalty: number;
+  seed: number | null;
+  enabled: Record<string, boolean>;
 }
 
 export class ApiError extends Error {
@@ -43,6 +108,15 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.retryAfter = retryAfter;
+  }
+}
+
+// Thrown when the server is in maintenance and the user isn't an admin.
+// The app catches this and shows the maintenance page.
+export class MaintenanceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MaintenanceError";
   }
 }
 
@@ -109,6 +183,15 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const data = text ? safeJson(text) : null;
 
   if (!res.ok) {
+    // The server refuses chat writes during maintenance with a 503 and a message
+    if (res.status === 503 && data && typeof data === "object" && "message" in data) {
+      const message = String((data as { message: unknown }).message);
+      // Show the maintenance page for every action, not only the ones that check for it
+      window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: message }));
+      throw new MaintenanceError(message);
+    }
+    
+
     if (res.status === 401 && auth) {
       tokenStore.clear();
       unauthorizedHandler?.();
@@ -146,57 +229,6 @@ function deviceName(): string {
   return `${browser} on ${os}`;
 }
 
-export interface ChatInfo {
-  id: string;
-  characterId: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface Message {
-  id: string;
-  chatId: string;
-  role: "system" | "user" | "assistant";
-  content: string;
-  createdAt: number;
-}
-
-export interface Usage {
-  used: number;
-  limit: number | null;
-  remaining: number | null;
-}
-
-export interface ModelGroup {
-  provider: string;
-  models: string[];
-  error?: string;
-}
-
-export interface CharacterInput {
-  name: string;
-  description?: string;
-  definition?: string;
-  personality?: string;
-  greeting?: string;
-  tags?: string[];
-  visibility?: "public" | "private";
-}
-
-// Generation settings. Only the ones the user turned on are sent.
-export interface GenParams {
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  topK?: number;
-  minP?: number;
-  repetitionPenalty?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-  seed?: number;
-}
-
 export const api = {
   publicConfig: () => request<{ signup: boolean }>("/api/public-config", { auth: false }),
   login: (username: string, password: string) =>
@@ -226,52 +258,45 @@ export const api = {
   chats: (characterId: string) => request<ChatInfo[]>(`/api/characters/${characterId}/chats`),
   createChat: (characterId: string) =>
     request<ChatInfo>("/api/chats", { method: "POST", body: { characterId } }),
-  messages: (chatId: string) => request<Message[]>(`/api/chats/${chatId}/messages`),
-  send: (chatId: string, body: { content: string; model: string; temperature?: number; maxTokens?: number }) =>
-    request<Message>(`/api/chats/${chatId}/messages`, { method: "POST", body }),
-  models: () => request<ModelGroup[]>("/api/models"),
   renameChat: (chatId: string, title: string) =>
     request<ChatInfo>(`/api/chats/${chatId}`, { method: "PATCH", body: { title } }),
   deleteChat: (chatId: string) =>
     request<{ ok: boolean }>(`/api/chats/${chatId}`, { method: "DELETE" }),
-    editMessage: (
-      messageId: string,
-      content: string,
-      opts?: { resend?: boolean; model?: string; temperature?: number; maxTokens?: number },
-    ) => request<Message | { user: Message; reply: Message }>(`/api/messages/${messageId}`, {
+  messages: (chatId: string) => request<Message[]>(`/api/chats/${chatId}/messages`),
+  send: (chatId: string, body: { content: string; model: string } & GenParams) =>
+    request<Message>(`/api/chats/${chatId}/messages`, { method: "POST", body }),
+  generate: (chatId: string, body: { model: string } & GenParams) =>
+    request<Message>(`/api/chats/${chatId}/generate`, { method: "POST", body }),
+  editMessage: (
+    messageId: string,
+    content: string,
+    opts?: { resend?: boolean; model?: string } & GenParams,
+  ) =>
+    request<Message | { user: Message; reply: Message }>(`/api/messages/${messageId}`, {
       method: "PATCH",
       body: { content, ...opts },
     }),
-    deleteMessage: (messageId: string) =>
-      request<{ ok: boolean }>(`/api/messages/${messageId}`, { method: "DELETE" }),
-    regenerate: (messageId: string, body: { model: string; temperature?: number; maxTokens?: number }) =>
+  deleteMessage: (messageId: string) =>
+    request<{ ok: boolean }>(`/api/messages/${messageId}`, { method: "DELETE" }),
+  regenerate: (messageId: string, body: { model: string } & GenParams) =>
     request<Message>(`/api/messages/${messageId}/regenerate`, { method: "POST", body }),
-    generate: (chatId: string, body: { model: string } & GenParams) =>
-    request<Message>(`/api/chats/${chatId}/generate`, { method: "POST", body }),
-    getPolicy: () => request<GenerationPolicy>("/api/generation-policy"),
-    savePolicy: (policy: GenerationPolicy) =>
-      request<GenerationPolicy>("/api/generation-policy", { method: "PUT", body: policy }),
+  models: () => request<ModelGroup[]>("/api/models"),
+  getPolicy: () => request<GenerationPolicy>("/api/generation-policy"),
+  savePolicy: (policy: GenerationPolicy) =>
+    request<GenerationPolicy>("/api/generation-policy", { method: "PUT", body: policy }),
+  getMaintenance: () => request<{ on: boolean; message: string }>("/api/maintenance"),
+  setMaintenance: (on: boolean, message: string) =>
+    request<{ on: boolean; message: string }>("/api/maintenance", {
+      method: "PUT",
+      body: { on, message },
+    }),
 };
-
-export interface GenerationPolicy {
-  contextMessages: number;
-  maxTokens: number;
-  temperature: number;
-  topP: number;
-  topK: number;
-  minP: number;
-  repetitionPenalty: number;
-  frequencyPenalty: number;
-  presencePenalty: number;
-  seed: number | null;
-  enabled: Record<string, boolean>;
-}
 
 // Streams a reply. Calls onToken for each piece as it arrives, and resolves when the
 // full message has been saved on the server.
 export async function streamMessage(
   chatId: string,
-  body: { content: string; model: string; temperature?: number; maxTokens?: number },
+  body: { content: string; model: string } & GenParams,
   onToken: (text: string) => void,
 ): Promise<void> {
   const token = tokenStore.get();
@@ -292,6 +317,9 @@ export async function streamMessage(
 
   if (!res.ok) {
     const data = safeJson(await res.text());
+    if (res.status === 503 && data && typeof data === "object" && "message" in data) {
+      throw new MaintenanceError(String((data as { message: unknown }).message));
+    }
     if (res.status === 401) {
       tokenStore.clear();
       unauthorizedHandler?.();

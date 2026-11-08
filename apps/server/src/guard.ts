@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { resolveToken, type User } from "@chars/core";
+import { getMaintenance, resolveToken, type User } from "@chars/core";
 import type { AppContext } from "./context.js";
 
 // Adds the logged-in user to each request
@@ -25,6 +25,18 @@ export function guard(ctx: AppContext) {
 
     req.actor = found.user;
     req.sessionId = found.sessionId;
+
+    // Maintenance: only admins can use the chat and send routes while it's on
+    const isChatWrite = /^\/api\/(chats|messages)/.test(path) && req.method !== "GET";
+    if (isChatWrite && found.user.role !== "admin") {
+      const m = getMaintenance(ctx.db);
+      if (m.on) {
+        return reply.code(503).send({
+          error: "maintenance",
+          message: m.message || "Akeru is under maintenance. Please try again later.",
+        });
+      }
+    }
   };
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   api,
+  MaintenanceError,
   type CharacterView,
   type ChatInfo,
   type Me,
@@ -310,10 +311,15 @@ export function ChatScreen({
       // The whole reply comes back at once. The word-by-word look is added in the browser.
       reply = await api.send(chatId, { content: text, ...gen });
     } catch (err) {
+      setPending(null);
+      if (err instanceof MaintenanceError) {
+        window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: err.message }));
+        console.log("maintenance event fired", err.message);
+        return;
+      }
       // Nothing was saved. Put the text back so it can be sent again
       setDraft(text);
       setError(errorText(err));
-      setPending(null);
       return;
     }
 
@@ -343,7 +349,11 @@ export function ChatScreen({
       startReveal(next.id, next.content);
       await refresh(chatId);
     } catch (err) {
-      setError(errorText(err));
+      if (err instanceof MaintenanceError) {
+        window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: err.message }));
+      } else {
+        setError(errorText(err));
+      }
     } finally {
       setGenerating(false);
     }

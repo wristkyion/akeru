@@ -10,6 +10,8 @@ import {
   signUp,
   getGenerationPolicy,
   saveGenerationPolicy,
+  getMaintenance,
+  setMaintenance,
   type GenerationPolicy,
   type User,
 } from "@chars/core";
@@ -132,6 +134,24 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
     saveGenerationPolicy(ctx.db, parsed.data as GenerationPolicy);
     return getGenerationPolicy(ctx.db);
+  });
+
+  // Anyone can read whether maintenance is on, so the app can show the right page
+  app.get("/api/maintenance", async (_req, reply) => {
+    return getMaintenance(ctx.db);
+  });
+
+  // Only the admin can change it
+  app.put("/api/maintenance", async (req, reply) => {
+    if ((req.actor as User).role !== "admin") {
+      return reply.code(403).send({ error: "only the admin can change maintenance" });
+    }
+    const body = req.body as { on?: unknown; message?: unknown };
+    setMaintenance(ctx.db, {
+      on: body.on === true,
+      message: typeof body.message === "string" ? body.message.slice(0, 200) : "",
+    });
+    return getMaintenance(ctx.db);
   });
   
   app.get("/api/public-config", async () => ({

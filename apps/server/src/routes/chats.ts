@@ -5,20 +5,22 @@ import {
   assertWithinLimit,
   deleteOwnChat,
   getOwnChat,
+  getGenerationPolicy,
   listMessages,
   listOwnChats,
+  policyToOptions,
   renameOwnChat,
   sendChatMessage,
   startOwnedChat,
-  generateNext,
-  ReplyOptions,
   type Chat,
   type User,
 } from "@chars/core";
 import type { AppContext } from "../context.js";
 import { errorText, httpError } from "../guard.js";
-import { GenParams, toOptions } from "../params.js";
+import { GenParams } from "../params.js";
 
+// The body is validated, but generation values from the user are ignored:
+// the admin's policy decides what the model receives.
 const SendMessage = z.object({
   content: z.string().min(1),
   model: z.string().min(3),
@@ -86,17 +88,17 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
       return httpError(reply, err);
     }
 
-    const { content, model } = parsed.data;
+    const policy = getGenerationPolicy(ctx.db);
     try {
       return await sendChatMessage({
         db: ctx.db,
         registry: ctx.registry,
         characterId: chat.characterId,
         chatId: chat.id,
-        content,
-        model,
-        options: policyToOptions(getGenerationPolicy(ctx.db)),
-        historyLimit: getGenerationPolicy(ctx.db).contextMessages,
+        content: parsed.data.content,
+        model: parsed.data.model,
+        options: policyToOptions(policy),
+        historyLimit: policy.contextMessages,
         user: { name: actor.displayName, persona: actor.persona },
         actor,
         dailyLimit: ctx.settings.limits.dailyMessages,
@@ -126,7 +128,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
       return httpError(reply, err);
     }
 
-    const { content, model } = parsed.data;
+    const policy = getGenerationPolicy(ctx.db);
 
     // From here on the response is a stream of events
     reply.hijack();
@@ -147,10 +149,10 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         registry: ctx.registry,
         characterId: chat.characterId,
         chatId: chat.id,
-        content,
-        model,
-        options: toOptions(parsed.data),
-        historyLimit: ctx.settings.chat.historyLimit,
+        content: parsed.data.content,
+        model: parsed.data.model,
+        options: policyToOptions(policy),
+        historyLimit: policy.contextMessages,
         user: { name: actor.displayName, persona: actor.persona },
         actor,
         dailyLimit: ctx.settings.limits.dailyMessages,

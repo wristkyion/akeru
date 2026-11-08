@@ -606,3 +606,12 @@ html[data-shape="square"] .avatar-sm { border-radius: 12px; }
 .generate-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
 .generate-btn:hover:not(:disabled) { background: var(--hover); }
 .generate-btn:disabled { background: var(--panel); color: var(--muted); opacity: 0.5; }
+/* Full-screen maintenance page: black background, one word */
+.maintenance {
+  position: fixed; inset: 0; background: #000; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 24px; text-align: center; z-index: 100;
+}
+.maintenance h1 { font-size: 40px; letter-spacing: 0.04em; font-weight: 700; }
+.maintenance p { color: #bdbdc6; max-width: 420px; }
+.maintenance .pill-btn { border-color: #444; color: #fff; }

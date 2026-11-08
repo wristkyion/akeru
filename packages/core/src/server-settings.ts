@@ -83,3 +83,29 @@ export function policyToOptions(p: GenerationPolicy): GenerationOptions {
     ...(p.enabled.seed && p.seed !== null ? { seed: p.seed } : {}),
   } as GenerationOptions;
 }
+
+const MAINTENANCE_KEY = "maintenance";
+
+export interface MaintenanceState {
+  on: boolean;
+  message: string; // shown to users during maintenance
+}
+
+export function getMaintenance(db: DB): MaintenanceState {
+  const row = db.prepare("SELECT value FROM server_settings WHERE key = ?").get(MAINTENANCE_KEY) as
+    | { value: string }
+    | undefined;
+  if (!row) return { on: false, message: "" };
+  try {
+    const saved = JSON.parse(row.value) as Partial<MaintenanceState>;
+    return { on: saved.on === true, message: typeof saved.message === "string" ? saved.message : "" };
+  } catch {
+    return { on: false, message: "" };
+  }
+}
+
+export function setMaintenance(db: DB, state: MaintenanceState): void {
+  db.prepare(
+    "INSERT INTO server_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ).run(MAINTENANCE_KEY, JSON.stringify(state));
+}

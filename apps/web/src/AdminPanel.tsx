@@ -704,7 +704,12 @@ export function AdminPanel({
               <Switch
                 label="Maintenance mode"
                 on={state.maintenance}
-                onChange={(v) => record(`maintenance ${v ? "on" : "off"}`, { maintenance: v })}
+                onChange={(v) => {
+                  api
+                    .setMaintenance(v, state.announcement)
+                    .then(() => record(`maintenance ${v ? "on" : "off"}`, { maintenance: v }))
+                    .catch((err) => window.alert(err instanceof Error ? err.message : "Could not change maintenance."));
+                }}
               />
             </div>
           </section>

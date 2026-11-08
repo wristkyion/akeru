@@ -1,16 +1,33 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { api, ApiError, setUnauthorizedHandler, tokenStore, type CharacterView, type Me } from "./api";
 import { ChatScreen } from "./Chat";
 import { CharacterForm } from "./CharacterForm";
 import { Home } from "./Home";
 import { LoginScreen } from "./LoginScreen";
+import { MaintenancePage } from "./MaintenancePage";
 import { PasswordForm } from "./PasswordForm";
 import { SettingsPage } from "./SettingsPage";
 import { applyPrefs, loadPrefs } from "./prefs";
 
 // Apply theme and icon shape before the first screen draws, so there's no flash
 applyPrefs(loadPrefs());
+
+// How often a logged-in user re-checks the maintenance switch, in milliseconds
+const MAINTENANCE_CHECK_MS = 15_000;
+
+interface Maintenance {
+  on: boolean;
+  message: string;
+}
 
 // Props every routed screen receives from App
 interface Shared {
@@ -81,6 +98,18 @@ function FormShell({ children }: { children: ReactNode }) {
   );
 }
 
+// /error?type=maintenance: the page a regular user sees while maintenance is on.
+// Admins and anyone whose maintenance has ended are sent home instead.
+function ErrorRoute(props: { maintenance: Maintenance; isAdmin: boolean; onCheck: () => void }) {
+  const [params] = useSearchParams();
+  const type = params.get("type");
+
+  if (type === "maintenance" && props.maintenance.on && !props.isAdmin) {
+    return <MaintenancePage message={props.maintenance.message} onCheck={props.onCheck} />;
+  }
+  return <Navigate to="/home" replace />;
+}
+
 // /home and /search?q=...
 function HomeRoute(props: Shared) {
   const navigate = useNavigate();
@@ -143,9 +172,6 @@ function EditRoute(props: Shared) {
 }
 
 // /character/:characterId and /character/:characterId/:chatId
-// The chatId is accepted here but the chat screen still opens the newest chat.
-// Selecting a chat from the URL comes with the next Chat.tsx step.
-// /character/:characterId and /character/:characterId/:chatId
 function ChatRoute(props: Shared) {
   const { characterId, chatId } = useParams();
   const navigate = useNavigate();
@@ -177,14 +203,22 @@ function ChatRoute(props: Shared) {
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   // Bumped after a save or delete, so the lists reload
   const [revision, setRevision] = useState(0);
   // Opened from Settings by a user who wants to change their own password
   const [showPassword, setShowPassword] = useState(false);
-  // Settings is still a modal for now. It moves to the URL in a later step.
+  // Settings is still a modal for now
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The server's maintenance switch, as the app last saw it
+  const [maintenance, setMaintenance] = useState<Maintenance>({ on: false, message: "" });
+
+  // Asks the server whether maintenance is on, and stores the answer
+  const checkMaintenance = () => {
+    api.getMaintenance().then(setMaintenance).catch(() => undefined);
+  };
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -193,19 +227,34 @@ export default function App() {
       setSettingsOpen(false);
     });
 
-    if (!tokenStore.get()) {
+    // A refused chat write (503) from any request also turns the maintenance page on at once
+    const onMaintenance = (e: Event) =>
+      setMaintenance({ on: true, message: (e as CustomEvent<string>).detail });
+    window.addEventListener("akeru:maintenance", onMaintenance);
+
+    if (tokenStore.get()) {
+      api
+        .me()
+        .then(setMe)
+        .catch((err: unknown) => {
+          if (err instanceof ApiError && err.status === 401) tokenStore.clear();
+          setMe(null);
+        })
+        .finally(() => setChecking(false));
+    } else {
       setChecking(false);
-      return;
     }
-    api
-      .me()
-      .then(setMe)
-      .catch((err: unknown) => {
-        if (err instanceof ApiError && err.status === 401) tokenStore.clear();
-        setMe(null);
-      })
-      .finally(() => setChecking(false));
+
+    return () => window.removeEventListener("akeru:maintenance", onMaintenance);
   }, []);
+
+  // Once someone is logged in, check the maintenance switch now, then every few seconds
+  useEffect(() => {
+    if (!me) return;
+    checkMaintenance();
+    const timer = setInterval(checkMaintenance, MAINTENANCE_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [me]);
 
   const logout = async () => {
     try {
@@ -230,8 +279,15 @@ export default function App() {
   };
 
   if (checking) return <Splash />;
+
   // Logged out: the login screen shows at whatever URL was opened, so a shared link still works after login
   if (!me) return <LoginScreen onLoggedIn={setMe} />;
+
+  // The maintenance check: the switch is on and this account isn't an admin, so send it to the page
+  const blocked = maintenance.on && me.role !== "admin";
+  if (blocked && !location.pathname.startsWith("/error")) {
+    return <Navigate to="/error?type=maintenance" replace />;
+  }
 
   // An admin reset means the user must pick a new password before using the app
   if (me.mustChangePassword) {
@@ -261,6 +317,16 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route
+          path="/error"
+          element={
+            <ErrorRoute
+              maintenance={maintenance}
+              isAdmin={me.role === "admin"}
+              onCheck={checkMaintenance}
+            />
+          }
+        />
         <Route path="/home" element={<HomeRoute {...shared} />} />
         <Route path="/search" element={<HomeRoute {...shared} />} />
         <Route path="/character/new" element={<CreateRoute {...shared} />} />

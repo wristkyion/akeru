@@ -15,11 +15,14 @@ function serverPort(): number {
   }
 }
 
+const target = `http://127.0.0.1:${serverPort()}`;
+console.log("proxy target:", target);
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
     port: 5173,
-    proxy: { "/api": `http://localhost:${serverPort()}` },
+    proxy: { "/api": target },
   },
 });
