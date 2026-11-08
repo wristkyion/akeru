@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type CharacterView, type Me } from "./api";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
@@ -96,10 +97,22 @@ function Section({
   );
 }
 
-export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePassword, onSettings }: HomeProps) {
+export function Home({
+  me,
+  revision,
+  onOpen,
+  onCreate,
+  onLogout,
+  onChangePassword,
+  onSettings,
+}: HomeProps) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // The search text lives in the URL: /search?q=...
+  const query = searchParams.get("q") ?? "";
+
   const [characters, setCharacters] = useState<CharacterView[] | null>(null);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
     api
@@ -109,6 +122,12 @@ export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePasswor
         setError(err instanceof ApiError ? err.message : "Could not load characters.");
       });
   }, [revision]);
+
+  // Typing updates the URL without adding history entries. Empty text goes back to /home.
+  function changeQuery(value: string) {
+    if (value === "") navigate("/home", { replace: true });
+    else navigate(`/search?q=${encodeURIComponent(value)}`, { replace: true });
+  }
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -133,7 +152,7 @@ export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePasswor
         me={me}
         activeId={null}
         revision={revision}
-        onHome={() => undefined}
+        onHome={() => navigate("/home")}
         onOpen={onOpen}
         onCreate={onCreate}
         onLogout={onLogout}
@@ -148,7 +167,7 @@ export function Home({ me, revision, onOpen, onCreate, onLogout, onChangePasswor
             type="search"
             placeholder="Search characters"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => changeQuery(e.target.value)}
           />
         </div>
 

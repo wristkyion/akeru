@@ -60,7 +60,7 @@ export async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
         ctx.registry,
         req.params.id,
         content,
-        optionsFor(actor, { ...parsed.data, model }),,
+        optionsFor(actor, { ...parsed.data, model }),
       );
     } catch (err) {
       return fail(reply, err);
@@ -77,7 +77,7 @@ export async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
         ctx.db,
         ctx.registry,
         req.params.id,
-        optionsFor(req.actor as User, parsed.data),,
+        optionsFor(req.actor as User, parsed.data),
       );
     } catch (err) {
       return fail(reply, err);

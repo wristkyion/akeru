@@ -595,3 +595,4 @@ html[data-shape="square"] .avatar-sm { border-radius: 12px; }
 @media (max-width: 720px) {
   .two-col { grid-template-columns: 1fr; }
 }
+.notfound { text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
