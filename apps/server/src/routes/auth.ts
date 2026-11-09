@@ -12,6 +12,7 @@ import {
   saveGenerationPolicy,
   getMaintenance,
   setMaintenance,
+  updateOwnProfile,
   type GenerationPolicy,
   type User,
 } from "@chars/core";
@@ -32,6 +33,8 @@ const SignupBody = z.object({
   password: z.string().min(8).max(256),
   displayName: z.string().max(40).optional(),
   device: z.string().max(80).optional(),
+  bio: z.string().max(160).optional(),
+  email: z.string().min(3).max(254),
 });
 
 // Every sign-up attempt counts, successful or not: 5 per IP per 15 minutes
@@ -79,6 +82,24 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.get("/api/me", async (req) => req.actor);
 
+  const ProfileBody = z.object({
+    displayName: z.string().max(40),
+    bio: z.string().max(160),
+  });
+
+  // The user saves their own display name and bio
+  app.patch("/api/me/profile", async (req, reply) => {
+    const parsed = ProfileBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "display name must be 1-40 characters, and bio up to 160" });
+    }
+    try {
+      return updateOwnProfile(ctx.db, req.actor as User, parsed.data);
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   const PasswordBody = z.object({
     current: z.string().min(1).max(256),
     next: z.string().min(8).max(256),
@@ -120,6 +141,9 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
     presencePenalty: z.number().min(-2).max(2),
     seed: z.number().int().min(0).nullable(),
     enabled: z.record(z.string(), z.boolean()),
+    warnPrompt: z.boolean(),
+    modelWindow: z.number().int().min(512).max(2000000),
+    warnAt: z.number().min(0.1).max(1),
   });
 
   // Everyone can read the policy, so the chat can show what's in effect
@@ -182,7 +206,13 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
 
     try {
       const { username, password, displayName, device } = parsed.data;
-      const user = signUp(ctx.db, { username, password, displayName });
+      const user = signUp(ctx.db, {
+        username,
+        password,
+        displayName,
+        email: parsed.data.email,
+        bio: parsed.data.bio,
+      });
       const { token, session } = createSession(
         ctx.db,
         user.id,

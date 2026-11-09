@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type GenerationPolicy } from "./api";
 
-type Key = Exclude<keyof GenerationPolicy, "enabled">;
+type Key = Exclude<keyof GenerationPolicy, "enabled" | "warnPrompt">;
 
 const FIELDS: { key: Key; label: string; min: number; max: number; step: number; hint: string }[] = [
   { key: "contextMessages", label: "Context size (messages)", min: 2, max: 500, step: 1, hint: "How many past messages the model reads each reply." },
@@ -21,7 +21,17 @@ export function PolicyCard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.getPolicy().then(setPolicy).catch((e) => setError(String(e)));
+    api
+      .getPolicy()
+      .then((p) =>
+        setPolicy({
+          warnPrompt: true,
+          modelWindow: 8192,
+          warnAt: 0.75,
+          ...p,
+        }),
+      )
+      .catch((e) => setError(String(e)));
   }, []);
 
   if (!policy) return <section className="set-card">{error || "Loading parameters…"}</section>;
@@ -100,6 +110,58 @@ export function PolicyCard() {
             onClick={() => update({ enabled: { ...policy.enabled, seed: !policy.enabled.seed } })}
           />
         </div>
+      </div>
+
+      <h3>Prompt size warning</h3>
+      <p className="muted small">
+        Shows a warning above the message box when the prompt is close to the model's limit. It
+        never blocks a message.
+      </p>
+
+      <div className="feature-row">
+        <div>
+          <span>Warn when the prompt is large</span>
+          <small className="muted small">Turn off to hide the warning for everyone.</small>
+        </div>
+        <button
+          className="toggle"
+          role="switch"
+          aria-checked={policy.warnPrompt}
+          aria-label="Warn when the prompt is large"
+          onClick={() => update({ warnPrompt: !policy.warnPrompt })}
+        />
+      </div>
+
+      <div className="feature-row">
+        <div>
+          <span>Model context window (tokens)</span>
+          <small className="muted small">The size of the model's memory. Check the model's documentation.</small>
+        </div>
+        <input
+          type="number"
+          className="mini-input"
+          min={512}
+          max={2000000}
+          step={512}
+          value={policy.modelWindow}
+          onChange={(e) => update({ modelWindow: Number(e.target.value) || 512 })}
+        />
+      </div>
+
+      <div className="feature-row">
+        <div>
+          <span>Warn at this share of the window</span>
+          <small className="muted small">0.75 means warn when the prompt uses three quarters of the window.</small>
+        </div>
+        <input
+          type="number"
+          className="mini-input"
+          min={0.1}
+          max={1}
+          step={0.05}
+          value={policy.warnAt}
+          onChange={(e) => update({ warnAt: Math.min(1, Math.max(0.1, Number(e.target.value) || 0.75)) })}
+        />
       </div>
 
       <div className="row-actions">

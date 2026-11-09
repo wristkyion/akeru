@@ -31,7 +31,7 @@ export function LoginScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [signupOpen, setSignupOpen] = useState(false);
-
+  const [email, setEmail] = useState("");
   const isSignup = mode === "signup";
   const next = safeNext(params.get("next"));
 
@@ -58,6 +58,10 @@ export function LoginScreen({
       setError("Enter your username and password.");
       return;
     }
+    if (!email.trim() || !email.includes("@")) {
+      setError("Enter a valid email address.");
+      return;
+    }
     if (isSignup) {
       if (password.length < 8) {
         setError("Password must be at least 8 characters.");
@@ -73,7 +77,7 @@ export function LoginScreen({
     setError("");
     try {
       const result = isSignup
-        ? await api.signup(name, password, displayName.trim())
+        ? await api.signup(name, password, displayName.trim(), email.trim())
         : await api.login(name, password);
       tokenStore.set(result.token);
       onLoggedIn(result.user);
@@ -118,8 +122,21 @@ export function LoginScreen({
           </label>
         )}
 
+        {isSignup && (
+          <label className="field">
+            <span>Email</span>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="Used to log in and for account recovery"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+        )}
+
         <label className="field">
-          <span>Username</span>
+          <span>{isSignup ? "Username" : "Username or email"}</span>
           <input
             autoFocus
             autoComplete="username"

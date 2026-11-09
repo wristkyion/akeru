@@ -5,6 +5,7 @@ import {
   MaintenanceError,
   type CharacterView,
   type ChatInfo,
+  type GenerationPolicy,
   type Me,
   type Message,
   type Usage,
@@ -22,6 +23,9 @@ import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
+
+// Rough token count: about four characters per token. Good enough for a warning.
+const roughTokens = (text: string) => Math.ceil(text.length / 4);
 
 // A reply that is being revealed word by word
 type Revealing = { id: string; text: string; mode: RevealMode } | null;
@@ -141,6 +145,7 @@ export function ChatScreen({
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<string[]>([]);
+  const [policy, setPolicy] = useState<GenerationPolicy | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [settings, setSettings] = useState<ChatSettings>(loadSettings);
   const [showDelete, setShowDelete] = useState(false);
@@ -233,6 +238,7 @@ export function ChatScreen({
       .models()
       .then((groups) => setModels(groups.flatMap((g) => g.models)))
       .catch(() => setModels([]));
+    api.getPolicy().then(setPolicy).catch(() => setPolicy(null));
     api.usage().then(setUsage).catch(() => setUsage(null));
   }, []);
 
@@ -314,7 +320,6 @@ export function ChatScreen({
       setPending(null);
       if (err instanceof MaintenanceError) {
         window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: err.message }));
-        console.log("maintenance event fired", err.message);
         return;
       }
       // Nothing was saved. Put the text back so it can be sent again
@@ -349,11 +354,7 @@ export function ChatScreen({
       startReveal(next.id, next.content);
       await refresh(chatId);
     } catch (err) {
-      if (err instanceof MaintenanceError) {
-        window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: err.message }));
-      } else {
-        setError(errorText(err));
-      }
+      setError(errorText(err));
     } finally {
       setGenerating(false);
     }
@@ -520,6 +521,22 @@ export function ChatScreen({
 
   const hasText = draft.trim().length > 0;
 
+  // Estimate the prompt: the character's background, plus the recent history, plus the draft.
+  // Only shown when the admin has turned the warning on.
+  const promptTokens = (() => {
+    if (!policy) return 0;
+    const persona = [character.description, character.definition, character.personality]
+      .filter(Boolean)
+      .join("\n");
+    const history = messages
+      .slice(-policy.contextMessages)
+      .map((m) => m.content)
+      .join("\n");
+    return roughTokens(persona) + roughTokens(history) + roughTokens(draft);
+  })();
+  const promptLarge =
+    !!policy && policy.warnPrompt && promptTokens > policy.modelWindow * policy.warnAt;
+
   return (
     <div className={drawer ? `app drawer-open drawer-${drawer}` : "app"}>
       <Sidebar
@@ -654,6 +671,15 @@ export function ChatScreen({
             </div>
           )}
           {usageText && <div className="usage">{usageText}</div>}
+          {promptLarge && (
+            <div className="usage warn-text">
+              This prompt is large (about {promptTokens} of {policy!.modelWindow} tokens). Long chats
+              may lose early messages.
+            </div>
+          )}
+          {policy && (
+            <div className="usage muted small">Context: last {policy.contextMessages} messages</div>
+          )}
 
           <div className="composer-box">
             <textarea

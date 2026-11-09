@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
-import type { Me } from "./api";
+import { api, type Me } from "./api";
 import { AdminPanel } from "./AdminPanel";
 import { loadSettings, SETTINGS_KEY, type ChatSettings } from "./ChatSettings";
 import { MAX_PERSONAS, loadPrefs, savePrefs, type Persona, type Prefs } from "./prefs";
@@ -19,6 +19,10 @@ const TEMPLATES = ["default", "roleplay", "short replies", "storytelling"];
 
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+// The date an account was created, in a readable form
+const joinedText = (ms: number) =>
+  new Date(ms).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" });
+
 function clearLocalData() {
   if (!window.confirm("Clear saved settings and personas in this browser? You stay logged in.")) {
     return;
@@ -35,6 +39,16 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
       <span className="set-label">{label}</span>
       {hint && <span className="muted small">{hint}</span>}
       {children}
+    </div>
+  );
+}
+
+// A read-only line of account information. Shown only to the account's owner.
+function InfoRow({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="info-row">
+      <span className="muted small">{label}</span>
+      <span>{value ?? "Not set"}</span>
     </div>
   );
 }
@@ -75,15 +89,24 @@ export function SettingsPage({
   me,
   onClose,
   onChangePassword,
+  onProfileSaved,
 }: {
   me: Me;
   onClose: () => void;
   onChangePassword: () => void;
+  onProfileSaved: (me: Me) => void;
 }) {
   const isAdmin = me.role === "admin";
   const [section, setSection] = useState<Section>(isAdmin ? "admin" : "profile");
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [chat, setChat] = useState<ChatSettings>(loadSettings);
+
+  // Profile form: starts from the server's values
+  const [displayName, setDisplayName] = useState(me.displayName);
+  const [bio, setBio] = useState(me.bio ?? "");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMsg, setProfileMsg] = useState("");
+  const [profileErr, setProfileErr] = useState("");
 
   // Persona form
   const [pName, setPName] = useState("");
@@ -111,6 +134,24 @@ export function SettingsPage({
     setChat(next);
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
   }
+
+  // Saves display name and bio to the server, then updates the app with the new values
+  async function saveProfile() {
+    setProfileBusy(true);
+    setProfileErr("");
+    setProfileMsg("");
+    try {
+      const updated = await api.saveProfile(displayName.trim(), bio.trim());
+      onProfileSaved(updated);
+      setProfileMsg("Saved. Your name and bio now show everywhere.");
+    } catch (err) {
+      setProfileErr(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  const profileChanged = displayName.trim() !== me.displayName || bio.trim() !== (me.bio ?? "");
 
   function resetPersonaForm() {
     setPName("");
@@ -172,52 +213,71 @@ export function SettingsPage({
 
           <main className="settings-body">
             <h2>{current?.label}</h2>
-            <p className="muted small">
-              Prototype: changes save in this browser until the backend is connected.
-            </p>
 
             {section === "admin" && isAdmin && (
-              <AdminPanel state={prefs.admin} onChange={(admin) => set("admin", admin)} />
+              <>
+                <p className="muted small">
+                  Prototype: changes save in this browser until the backend is connected.
+                </p>
+                <AdminPanel state={prefs.admin} onChange={(admin) => set("admin", admin)} />
+              </>
             )}
 
             {section === "profile" && (
-              <section className="set-card">
-                <Row label="Username" hint="Changing it needs the backend, so it checks nobody else has it.">
-                  <input
-                    value={prefs.profile.username || me.username}
-                    maxLength={32}
-                    onChange={(e) => set("profile", { ...prefs.profile, username: e.target.value })}
-                  />
-                </Row>
-                <Row label="Display name" hint="Shown in chats and on your cards.">
-                  <input
-                    value={prefs.profile.displayName}
-                    maxLength={40}
-                    placeholder={me.displayName}
-                    onChange={(e) => set("profile", { ...prefs.profile, displayName: e.target.value })}
-                  />
-                </Row>
-                <Row label="Bio" hint={`${prefs.profile.bio.length}/160`}>
-                  <textarea
-                    rows={3}
-                    maxLength={160}
-                    value={prefs.profile.bio}
-                    onChange={(e) => set("profile", { ...prefs.profile, bio: e.target.value })}
-                  />
-                </Row>
-              </section>
+              <>
+                <section className="set-card">
+                  <h3>Your account</h3>
+                  <p className="muted small">From the server. Only you can see this.</p>
+                  <InfoRow label="Username" value={`@${me.username}`} />
+                  <InfoRow label="Email" value={me.email} />
+                  <InfoRow label="Role" value={me.role === "admin" ? "Admin" : "User"} />
+                  <InfoRow label="Joined" value={joinedText(me.createdAt)} />
+                </section>
+
+                <section className="set-card">
+                  <h3>Public profile</h3>
+                  <p className="muted small">
+                    Shown in chats and on your profile. Saved to the server, so it follows your account.
+                  </p>
+                  <Row label="Display name" hint="How characters address you. 1 to 40 characters.">
+                    <input
+                      value={displayName}
+                      maxLength={40}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                    />
+                  </Row>
+                  <Row label="Bio" hint={`${bio.length}/160`}>
+                    <textarea
+                      rows={3}
+                      maxLength={160}
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                    />
+                  </Row>
+                  {profileErr && <p className="error">{profileErr}</p>}
+                  {profileMsg && <p className="muted small">{profileMsg}</p>}
+                  <div className="row-actions">
+                    <button
+                      className="pill-btn"
+                      onClick={saveProfile}
+                      disabled={!profileChanged || profileBusy || !displayName.trim()}
+                    >
+                      {profileBusy ? "Saving…" : "Save profile"}
+                    </button>
+                  </div>
+                </section>
+              </>
             )}
 
             {section === "account" && (
               <>
                 <section className="set-card">
-                  <Row label="Email" hint="Not verified yet. Used for sign-in alerts later.">
-                    <input
-                      type="email"
-                      value={prefs.account.email}
-                      onChange={(e) => set("account", { email: e.target.value })}
-                    />
-                  </Row>
+                  <h3>Your account</h3>
+                  <InfoRow label="Email" value={me.email} />
+                  <InfoRow label="Username" value={`@${me.username}`} />
+                  <p className="muted small">
+                    The email is used to log in. It stays private. Changing it isn't available yet.
+                  </p>
                 </section>
 
                 <section className="set-card">
@@ -244,6 +304,9 @@ export function SettingsPage({
 
             {section === "chat" && (
               <>
+                <p className="muted small">
+                  Prototype: changes save in this browser until the backend is connected.
+                </p>
                 <section className="set-card">
                   <Row label="Template" hint="The starting style for new chats.">
                     <select
@@ -260,7 +323,10 @@ export function SettingsPage({
                   <Row label="Model" hint="Set by the admin for everyone. Users can't switch models.">
                     <input value={prefs.admin.model || "Default"} disabled />
                   </Row>
-                  <Row label="Reply animation" hint="Smooth reveals each reply word by word, with a fade. Instant shows it all at once.">
+                  <Row
+                    label="Reply animation"
+                    hint="Smooth reveals each reply word by word, with a fade. Instant shows it all at once."
+                  >
                     <Seg
                       value={prefs.chat.animation}
                       options={[
@@ -357,39 +423,44 @@ export function SettingsPage({
             )}
 
             {section === "display" && (
-              <section className="set-card">
-                <Row label="Language" hint="Interface language. Translations come later. This only saves your choice.">
-                  <Seg
-                    value={prefs.display.language}
-                    options={[
-                      { value: "en", label: "English" },
-                      { value: "id", label: "Indonesia" },
-                      { value: "ja", label: "日本語" },
-                    ]}
-                    onChange={(v) => set("display", { ...prefs.display, language: v })}
-                  />
-                </Row>
-                <Row label="Theme" hint="Dark or light. Applies right away.">
-                  <Seg
-                    value={prefs.display.theme}
-                    options={[
-                      { value: "dark", label: "Dark" },
-                      { value: "light", label: "Light" },
-                    ]}
-                    onChange={(v) => set("display", { ...prefs.display, theme: v })}
-                  />
-                </Row>
-                <Row label="Icon shape" hint="Round avatars, or rounded squares.">
-                  <Seg
-                    value={prefs.display.shape}
-                    options={[
-                      { value: "round", label: "Round" },
-                      { value: "square", label: "Square" },
-                    ]}
-                    onChange={(v) => set("display", { ...prefs.display, shape: v })}
-                  />
-                </Row>
-              </section>
+              <>
+                <p className="muted small">
+                  Prototype: changes save in this browser until the backend is connected.
+                </p>
+                <section className="set-card">
+                  <Row label="Language" hint="Interface language. Translations come later. This only saves your choice.">
+                    <Seg
+                      value={prefs.display.language}
+                      options={[
+                        { value: "en", label: "English" },
+                        { value: "id", label: "Indonesia" },
+                        { value: "ja", label: "日本語" },
+                      ]}
+                      onChange={(v) => set("display", { ...prefs.display, language: v })}
+                    />
+                  </Row>
+                  <Row label="Theme" hint="Dark or light. Applies right away.">
+                    <Seg
+                      value={prefs.display.theme}
+                      options={[
+                        { value: "dark", label: "Dark" },
+                        { value: "light", label: "Light" },
+                      ]}
+                      onChange={(v) => set("display", { ...prefs.display, theme: v })}
+                    />
+                  </Row>
+                  <Row label="Icon shape" hint="Round avatars, or rounded squares.">
+                    <Seg
+                      value={prefs.display.shape}
+                      options={[
+                        { value: "round", label: "Round" },
+                        { value: "square", label: "Square" },
+                      ]}
+                      onChange={(v) => set("display", { ...prefs.display, shape: v })}
+                    />
+                  </Row>
+                </section>
+              </>
             )}
 
             {section === "advanced" && (

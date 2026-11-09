@@ -4,9 +4,11 @@ export interface Me {
   id: string;
   username: string;
   displayName: string;
+  bio: string;
   persona: string;
   role: "admin" | "user";
   disabled: boolean;
+  email: string | null;
   mustChangePassword: boolean;
   createdAt: number;
 }
@@ -97,6 +99,9 @@ export interface GenerationPolicy {
   presencePenalty: number;
   seed: number | null;
   enabled: Record<string, boolean>;
+  warnPrompt: boolean;
+  modelWindow: number;
+  warnAt: number;
 }
 
 export class ApiError extends Error {
@@ -257,13 +262,22 @@ export const api = {
       body: { username, password, device: deviceName() },
       auth: false,
     }),
-  signup: (username: string, password: string, displayName: string) =>
-    request<LoginResult>("/api/signup", {
-      method: "POST",
-      body: { username, password, displayName: displayName || undefined, device: deviceName() },
-      auth: false,
-    }),
+    signup: (username: string, password: string, displayName: string, email: string, bio = "") =>
+      request<LoginResult>("/api/signup", {
+        method: "POST",
+        body: {
+          username,
+          password,
+          displayName: displayName || undefined,
+          email,
+          bio: bio || undefined,
+          device: deviceName(),
+        },
+        auth: false,
+      }),
   logout: () => request<{ ok: boolean }>("/api/logout", { method: "POST", body: {} }),
+  saveProfile: (displayName: string, bio: string) =>
+    request<Me>("/api/me/profile", { method: "PATCH", body: { displayName, bio } }),
   me: () => request<Me>("/api/me"),
   changePassword: (current: string, next: string) =>
     request<{ ok: boolean }>("/api/me/password", { method: "POST", body: { current, next } }),

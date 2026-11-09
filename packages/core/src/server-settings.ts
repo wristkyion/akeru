@@ -12,6 +12,10 @@ export interface GenerationPolicy {
   repetitionPenalty: number;
   frequencyPenalty: number;
   presencePenalty: number;
+  // Prompt size warning, set by the admin
+  warnPrompt: boolean; // show a warning before sending a large prompt
+  modelWindow: number; // the model's context window, in tokens
+  warnAt: number; // warn when the prompt uses this share of the window (0.5 = half)
   seed: number | null; // null = random each time
   // Which parameters are sent at all. A parameter that is off is never sent to the provider.
   enabled: Record<keyof Omit<GenerationPolicy, "enabled">, boolean>;
@@ -28,6 +32,9 @@ const DEFAULTS: GenerationPolicy = {
   frequencyPenalty: 0,
   presencePenalty: 0,
   seed: null,
+  warnPrompt: true,
+  modelWindow: 8192,
+  warnAt: 0.75,
   enabled: {
     contextMessages: true,
     maxTokens: true,

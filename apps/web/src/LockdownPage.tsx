@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ErrorScreen } from "./ErrorScreen";
 
 // Shown when the app can't reach the server. It checks again on its own,
 // and the button checks right away.
@@ -12,15 +13,13 @@ export function LockdownPage({ onRetry }: { onRetry: () => Promise<void> }) {
   }
 
   return (
-    <div className="maintenance">
-      <h1>Lockdown</h1>
-      <p>
-        Akeru can't reach the server right now. Check that the server is running. This page will
-        check again on its own.
-      </p>
-      <button className="pill-btn" onClick={retry} disabled={busy}>
+    <ErrorScreen
+      title="Lockdown"
+      message="Akeru can't reach the server right now. Check that the server is running. This page will check again on its own."
+    >
+      <button className="btn-primary err-btn" onClick={retry} disabled={busy}>
         {busy ? "Checking…" : "Try again"}
       </button>
-    </div>
+    </ErrorScreen>
   );
 }

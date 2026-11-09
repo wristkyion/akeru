@@ -97,6 +97,15 @@ const MIGRATIONS: string[] = [
       value TEXT NOT NULL
     );
   `,
+  // 7: email for each account. Unique when set, so one email can't open two accounts.
+  `
+    ALTER TABLE users ADD COLUMN email TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+  `,
+  // 8: short bio shown on the user's profile
+  `
+    ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 function runMigrations(db: DB): void {

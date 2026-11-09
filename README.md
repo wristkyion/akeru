@@ -6,8 +6,12 @@ A local, self-hosted character chat app, similar to Character.AI. Run it on your
 
 - **Characters** with name, description, definition, personality, greeting, and tags. Each character gets its own persona in every request.
 - **Placeholders:** `{{char}}` and `{{user}}` in greetings and character text, filled in when a chat starts.
-- **Accounts:** an admin plus regular users, each with a username and password. Passwords are stored as salted hashes.
-- **Change password:** from the Settings page, or from the CLI for a forced reset.
+- **Accounts:** an admin plus regular users, each with a username, an email, and a password. Passwords are stored as salted hashes.
+- **Log in with username or email:** either works on the login page.
+- **Sign up with email:** email is required for new accounts and kept private. Each email can be used by one account only.
+- **Profile:** display name and bio are saved on the server, from Settings, so they follow your account to every device. Chats use the display name.
+- **Account information:** Settings shows your username, email, role, and join date, from the server. Only you see them.
+- **Change password:** from Settings, or from the CLI for a forced reset.
 - **Open sign-up (optional):** new people can create their own accounts at `/signup`. Turn it on or off in settings.
 - **Visibility:** characters are public (everyone can chat) or private (only the owner can chat; the admin can see that it exists).
 - **Private chats:** each chat belongs to one user. Nobody else can read it, including the admin.
@@ -18,16 +22,19 @@ A local, self-hosted character chat app, similar to Character.AI. Run it on your
 - **Streaming and reveal:** replies appear word by word in the browser, with a fade. Choose Instant or Smooth in Settings.
 - **Formatting:** `**bold**` and `*italic*` in messages, without HTML.
 - **Admin-controlled generation:** temperature, context size, max reply length, and the other parameters are set by the admin, for every user. The server enforces them, so the browser can't change them.
+- **Context size shown to users:** the chat shows how many past messages the model reads.
+- **Prompt size warning:** when a request gets close to the model's context window, the chat shows a warning. The admin turns it on or off, and sets the window size and the warning point. It never blocks a message.
 - **Daily message limit:** regular users get a set number of messages per day, shown in the chat. Admins are exempt.
-- **Maintenance mode:** the admin can switch it on in the admin panel. The server refuses chat writes for regular users, and the app sends them to a maintenance page. Admins keep full access.
+- **Maintenance mode:** the admin switches it on in the admin panel, or from the CLI. The server refuses chat writes for regular users, and the app sends them to a maintenance page. Admins keep full access.
+- **Lockdown page:** when the app can't reach the server, it shows a lockdown page, checks again on its own, and returns you to the page you were on once the server is back.
 - **Settings page:** profile, account, chat, display (theme, icon shape, language), and advanced options. It opens as a modal over whatever screen you're on.
-- **Admin panel:** overview, accounts, plans, models (with the generation parameters), moderation, and system tools. Parts of it are still prototype.
+- **Admin panel:** overview, accounts, plans, models (with the generation parameters and the prompt warning), moderation, and system tools (including maintenance). Parts of it are still prototype.
 - **Sessions:** logging in gives each device its own token. Admins can see and revoke sessions.
 - **Login protection:** repeated failed logins lock the account or IP for 15 minutes.
 - **Model switching:** pick any model from any configured provider, as `provider/model`.
 - **Web app:** a Character.AI-style layout. The sidebar lists your characters and their chats, the chat screen has a character profile panel on the right, and phones get slide-in drawers for both.
 - **Terminal UI:** a three-panel interface with scrolling, retry, and live message display.
-- **CLI:** manage characters, accounts, sessions, and chats from the terminal.
+- **CLI:** manage characters, accounts, emails, sessions, chats, and maintenance from the terminal.
 
 ## Requirements
 
@@ -54,7 +61,7 @@ Create the first admin account. You'll be asked for a password twice, and it won
 
 ```powershell
 cd apps\cli
-pnpm cli user add admin --role admin --name "Your Name" --persona "A short description of you, shared with characters"
+pnpm cli user add admin --role admin --name "Your Name" --email "you@example.com" --persona "A short description of you, shared with characters"
 ```
 
 Build the web app and start the server:
@@ -125,11 +132,14 @@ Models are referenced as `providerId/modelId`, for example `9router/claude-haiku
 
 | | Admin | User |
 |---|---|---|
-| Log in from web or app | Yes | Yes |
+| Log in with username or email | Yes | Yes |
 | Create accounts | From the CLI, or at `/signup` if sign-up is open | Only at `/signup`, if open |
+| Sign-up email | Optional from the CLI | Required at `/signup` |
 | Create, list, disable, and reset users | Yes (CLI, on the server PC) | No |
+| See user emails | Yes (CLI `user list`) | Own email only |
+| Edit display name and bio | Own account | Own account |
 | See and revoke sessions | Yes | Own sessions only |
-| Set generation parameters | Yes (Admin panel → Models) | No |
+| Set generation parameters and the prompt warning | Yes (Admin panel → Models) | No |
 | Use the app during maintenance | Yes | No (sent to the maintenance page) |
 | Daily message limit | Exempt | Applies |
 | See public characters | Yes | Yes |
@@ -140,7 +150,9 @@ Models are referenced as `providerId/modelId`, for example `9router/claude-haiku
 | Edit a character | Owner only | Owner only |
 | Delete a character | Owner, or admin | Owner only |
 
-Sign-up always creates regular users, never admins. These names are reserved and can't be used: `admin`, `root`, `system`, `akeru`, `support`. Each IP address gets 5 sign-up attempts per 15 minutes.
+Sign-up always creates regular users, never admins. These names are reserved and can't be used: `admin`, `root`, `system`, `akeru`, `support`. Each IP address gets 5 sign-up attempts per 15 minutes. Each email can belong to one account only.
+
+Emails are not verified yet, and there is no password reset by email yet. Both need a mail service, which is a separate step.
 
 ## Character visibility
 
@@ -154,7 +166,7 @@ The web app has real addresses, so refresh, back and forward, and shared links w
 
 | Address | Shows |
 |---|---|
-| `/login` | Log in. Logged-in users are sent to `/home`. |
+| `/login` | Log in with username or email. Logged-in users are sent to `/home`. |
 | `/signup` | Create an account, when sign-up is open. Otherwise sends to `/login`. |
 | `/home` | Your characters and the other characters you can see. |
 | `/search?q=...` | Home, with the search filled in. |
@@ -163,6 +175,7 @@ The web app has real addresses, so refresh, back and forward, and shared links w
 | `/character/:id/:chatId` | One specific chat. |
 | `/character/:id/edit` | Edit a character you own. |
 | `/error?type=maintenance` | The maintenance page, for regular users while maintenance is on. |
+| `/error?type=lockdown` | The lockdown page, shown when the app can't reach the server. |
 
 If you're logged out and open any other address, you're sent to `/login?next=<that address>`, and after logging in you return to it.
 
@@ -174,16 +187,17 @@ Every route except the public ones requires a login token. Send it as `Authoriza
 | --- | --- | --- | --- |
 | GET | `/api/health` | Public | Server and database status |
 | GET | `/api/public-config` | Public | Whether sign-up is open |
-| POST | `/api/login` | Public | Log in, returns a token |
-| POST | `/api/signup` | Public, when sign-up is open | Create a regular account, returns a token |
-| GET | `/api/maintenance` | Public to logged-in users | Whether maintenance is on, and its message |
+| POST | `/api/login` | Public | Log in with username or email, returns a token |
+| POST | `/api/signup` | Public, when sign-up is open | Create a regular account with an email, returns a token |
+| GET | `/api/maintenance` | Logged in | Whether maintenance is on, and its message |
 | PUT | `/api/maintenance` | Admin | Turn maintenance on or off, with a message |
 | POST | `/api/logout` | Logged in | End the current session |
-| GET | `/api/me` | Logged in | The current account |
+| GET | `/api/me` | Logged in | The current account, including email and bio |
+| PATCH | `/api/me/profile` | Logged in | Save your display name and bio |
 | POST | `/api/me/password` | Logged in | Change your own password |
 | GET | `/api/me/usage` | Logged in | Messages sent today and the daily limit |
-| GET | `/api/generation-policy` | Logged in | The generation parameters in effect |
-| PUT | `/api/generation-policy` | Admin | Change the generation parameters for everyone |
+| GET | `/api/generation-policy` | Logged in | The generation parameters and prompt warning settings in effect |
+| PUT | `/api/generation-policy` | Admin | Change the generation parameters and prompt warning for everyone |
 | GET | `/api/characters` | Logged in | Characters you can see |
 | POST | `/api/characters` | Logged in | Create a character you own |
 | GET | `/api/characters/:id` | Logged in | One character, if visible |
@@ -206,7 +220,7 @@ Login returns the token once. The server stores only a hash of it, so a leaked d
 
 Generation settings in send and generate requests are validated, but the server uses the admin's policy instead, so values sent from the browser don't change the model's behavior.
 
-Failed sends return these codes: `429` for the daily limit, `503` for maintenance, `502` when the model call fails. Failed sends save nothing, so retrying can't create duplicate messages.
+Failed requests return these codes: `400` for invalid input, `429` for the daily limit or too many attempts, `503` for maintenance, `502` when the model call fails. Failed sends save nothing, so retrying can't create duplicate messages.
 
 ## CLI
 
@@ -241,7 +255,7 @@ pnpm cli ui --user test
 Accounts:
 
 ```powershell
-pnpm cli user add <username> --role user --name "Display Name" --persona "..."
+pnpm cli user add <username> --role user --name "Display Name" --email "you@example.com" --persona "..."
 pnpm cli user list
 pnpm cli user profile <username> --name "..." --persona "..."
 pnpm cli user disable <username>
@@ -251,7 +265,19 @@ pnpm cli user sessions [username]
 pnpm cli user revoke <username>
 ```
 
+`user list` shows each account's email, or `(none)` for accounts created before emails were added.
+
 `reset-password` sets a temporary password. The user is asked to choose their own at next login, and every session is signed out.
+
+Maintenance:
+
+```powershell
+pnpm cli maintenance status
+pnpm cli maintenance on --message "Back in 30 minutes"
+pnpm cli maintenance off
+```
+
+Use the CLI when the web app is locked by maintenance. It writes to the database directly, so the server doesn't need to be running. The running server picks up the change on its next check.
 
 Passwords are typed into a hidden prompt, so they don't show on screen or go into shell history.
 
@@ -259,22 +285,24 @@ Passwords are typed into a hidden prompt, so they don't show on screen or go int
 
 Open `http://localhost:3000` (built) or `http://localhost:5173` (dev server).
 
-- **Log in** at `/login`. The token is saved in the browser, so you stay logged in until you log out.
-- **Create an account** at `/signup`, when the admin has turned on open sign-up.
+- **Log in** at `/login`, with your username or email. The token is saved in the browser, so you stay logged in until you log out.
+- **Create an account** at `/signup`, when the admin has turned on open sign-up. An email is required.
 - **Sidebar:** your name, search, Home, Create character, your characters with their chats underneath, and Settings and Log out at the bottom.
 - **Click a character** to open its chat. The greeting appears first, and your message shows right away while the reply is generated.
 - **Chat panel** on the right shows the character's profile, with like, share, and report (prototype), plus its description and tags. Owners see **Edit character** there.
 - **Edit character** has a delete option at the bottom, for owners only.
+- **Context line** under the composer shows how many past messages the model reads.
+- **Prompt warning** appears above the composer when the prompt is close to the model's limit, if the admin has turned it on.
 - **Composer button:** when the box has text it shows **Send**. When the box is empty it shows **Generate**, which adds the character's next message.
 - **Message actions:** Edit changes the text. Save & resend writes a new reply and removes the messages after it. Refresh replaces the newest reply. Delete removes one message.
 - **Enter** sends. **Shift+Enter** adds a new line.
 - **Settings** opens as a modal, from the sidebar or the chat. It has these sections:
-  - **Profile:** username, display name, bio.
-  - **Account:** email and password. Other devices are signed out after a password change.
-  - **Chat:** template, the model set by the admin, reply animation (Instant or Smooth), personas, and the generation parameters (admins only; users see a note).
+  - **Profile:** your account information (username, email, role, join date), and your display name and bio, saved on the server.
+  - **Account:** email, change password, delete account (disabled until the backend).
+  - **Chat:** template, the model set by the admin, reply animation (Instant or Smooth), the parameters note, and personas (browser-only for now).
   - **Display:** language, dark or light theme, and round or square icons.
   - **Advanced:** debug info and clearing browser data.
-  - **Admin panel** (admins only): overview, accounts, plans, models (including the generation parameters), moderation, and system (including maintenance mode).
+  - **Admin panel** (admins only): overview, accounts, plans, models (including the generation parameters and the prompt warning), moderation, and system (including maintenance mode).
 - **On phones**, the chat bar has a sidebar icon on the left and a character icon on the right. Each opens its panel as a drawer, closed by tapping the dark area.
 
 ## Phone access
@@ -308,7 +336,7 @@ cd packages\core
 pnpm test
 ```
 
-Expect 44 passing tests.
+Expect the full suite to pass with no failures. Run it after any change in `packages\core`.
 
 End-to-end checks run against a running server. They log in as both accounts, test visibility, permissions, chat privacy, failed sends, and logout, then remove their own test characters. They never call a model.
 
@@ -338,7 +366,11 @@ Run both checks after any server or route change: unit tests first, then the end
 
 - **`EADDRINUSE`:** another program uses the port. Change `server.port` in `settings.json`, or find the process with `netstat -ano | findstr :3000`.
 - **`ECONNREFUSED` in the dev server terminal:** the Akeru server isn't running. Start it with `pnpm start` in `apps\server`. Both windows must run together.
-- **`500` errors after editing server files:** restart the server. Route changes don't load until it restarts.
+- **`500` errors after editing server files:** restart the server. Route and core changes don't load until it restarts.
+- **`400 Bad Request` when saving the admin policy:** restart the server, so it accepts the new fields. Then save again.
+- **`USERNAME is not defined` or `RESERVED_USERNAMES is not defined`:** a constant was lost while editing `auth.ts`. Keep both constants at the top of the file, outside any function.
+- **`that email is already in use` at signup:** the email belongs to an existing account. Use `pnpm cli user list` to see which one.
+- **Lockdown page doesn't return you to the chat:** make sure the server is running again. The page checks every 10 seconds, or press **Try again**.
 - **`ERR_ADDRESS_UNREACHABLE` on the phone:** see **Phone access**.
 - **Blank page, or `X is not defined` in the browser console:** a file was edited partly. Replace the whole file, and check that every component you use is imported.
 - **Duplicate declarations in the dev server terminal** (`has already been declared`): a line was pasted twice. Delete the second copy.
@@ -348,7 +380,7 @@ Run both checks after any server or route change: unit tests first, then the end
 - **`too many attempts` (429):** wait 15 minutes, or restart the server to clear the limit.
 - **`invalid username or password`:** check the password, or reset it with `pnpm cli user reset-password <name>`.
 - **`daily limit reached`:** the account has used its messages for today. It resets at midnight, or raise `limits.dailyMessages`.
-- **`Akeru is under maintenance`:** the admin has maintenance on. Turn it off in Admin panel → System, or sign in as admin.
+- **`Akeru is under maintenance`:** the admin has maintenance on. Turn it off in Admin panel → System, or from the CLI with `pnpm cli maintenance off`.
 - **A model error after a parameter change:** the provider may not support that setting. Turn it off in Admin panel → Models.
 - **`415 Unsupported Media Type`:** a POST request is missing its `Content-Type`. Add `-ContentType "application/json"` with a body such as `'{}'`.
 - **Model errors, or "No model available":** check `pnpm cli models` lists models. If it lists nothing, check the provider's `baseUrl` and that the provider is running.
@@ -361,20 +393,21 @@ akeru/
 ├─ apps/
 │  ├─ server/     Fastify API, login, sessions, maintenance, serves the web app
 │  │  └─ scripts/e2e.ts   end-to-end checks
-│  ├─ web/        React + Vite web app (routes, sidebar, chat, settings, admin)
-│  └─ cli/        Terminal commands and terminal UI (Ink)
+│  ├─ web/        React + Vite web app (routes, sidebar, chat, settings, admin, error pages)
+│  └─ cli/        Terminal commands, terminal UI (Ink), maintenance commands
 ├─ packages/
-│  └─ core/       Database, accounts, sign-up, sessions, visibility, limits,
-│                 messages, generation policy, maintenance, providers
+│  └─ core/       Database, accounts, emails, profiles, sign-up, sessions, visibility,
+│                 limits, messages, generation policy, maintenance, providers
 ├─ config/        settings.example.json (template), settings.json, secrets.json, chars.db
 ├─ backup-akeru.ps1   copies chars.db to a dated backup file
+├─ README.md
 └─ LIS.md         task list
 ```
 
 ## Status
 
-Working: accounts, open sign-up, sessions, visibility rules, daily limits, past chats with their own addresses, message actions, Generate, streaming and the reveal, admin-controlled generation parameters, the maintenance workflow, the login and signup routes, the Settings modal, the character panel, phone drawers, the terminal UI, and the CLI.
+Working: accounts with usernames and emails, login with either, open sign-up with a required email, display name and bio saved on the server, account information in Settings, sessions, visibility rules, daily limits, past chats with their own addresses, message actions, Generate, streaming and the reveal, admin-controlled generation parameters, the context size line and prompt warning, the maintenance workflow (web and CLI), the lockdown page, the login and signup routes, the Settings modal, the character panel, phone drawers, the terminal UI, and the CLI.
 
-Prototype only: most of the admin panel and the Profile, Account, Chat, and Display settings. They save in the browser, and the backend will replace them.
+Prototype only: most of the admin panel, the Chat, Display, and Advanced settings, and personas. They save in the browser, and the backend will replace them.
 
-Not yet built: the lockdown page (`/error?type=lockdown`), the Stop button, the prompt size warning, per-character settings, and the terminal UI's parameters.
+Not yet built: personas as selectable profiles, profile pictures, email verification and password reset, and the server-side settings for display and chat.

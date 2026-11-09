@@ -401,7 +401,12 @@ export default function App() {
       </Routes>
 
       {settingsOpen && (
-        <SettingsPage me={me} onClose={closeSettings} onChangePassword={openPassword} />
+        <SettingsPage
+          me={me}
+          onClose={closeSettings}
+          onChangePassword={openPassword}
+          onProfileSaved={setMe}
+        />
       )}
     </>
   );

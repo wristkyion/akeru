@@ -343,7 +343,7 @@ users
   .option("-r, --role <role>", "admin or user", "user")
   .option("-n, --name <displayName>", "display name shown in chats")
   .option("-p, --persona <text>", "who this user is, shared with characters")
-  .action(async (username: string, opts: { role: string; name?: string; persona?: string }) => {
+  .action(async (username: string, opts: { role: string; name?: string; persona?: string; email?: string }) => {
     if (opts.role !== "admin" && opts.role !== "user") throw new Error("role must be admin or user");
     const password = await askHidden("Password: ");
     const again = await askHidden("Repeat password: ");
@@ -353,6 +353,7 @@ users
       password,
       role: opts.role as "admin" | "user",
       displayName: opts.name,
+      email: opts.email,
       persona: opts.persona,
     });
     console.log(`Created ${u.username} (${u.role})`);
@@ -360,13 +361,17 @@ users
 
 users
   .command("list")
-  .description("List user accounts")
+  .description("List user accounts, with their email")
   .action(() => {
     const all = listUsers(db);
     if (all.length === 0) return console.log("No users yet. Create one with: pnpm cli user add <name>");
+    console.log(`${"username".padEnd(16)} ${"role".padEnd(6)} ${"status".padEnd(9)} ${"email".padEnd(28)} name`);
     for (const u of all) {
       const status = u.disabled ? "disabled" : "active";
-      console.log(`${u.username.padEnd(16)} ${u.role.padEnd(6)} ${status.padEnd(9)} ${u.displayName}`);
+      const email = u.email ?? "(none)";
+      console.log(
+        `${u.username.padEnd(16)} ${u.role.padEnd(6)} ${status.padEnd(9)} ${email.padEnd(28)} ${u.displayName}`,
+      );
     }
   });
 
@@ -402,6 +407,7 @@ users
   .description("Set the display name and persona used in chats")
   .option("-n, --name <displayName>")
   .option("-p, --persona <text>")
+  .option("-e, --email <address>", "email for password reset and login")
   .action((username: string, opts: { name?: string; persona?: string }) => {
     const u = updateUserProfile(db, username, { displayName: opts.name, persona: opts.persona });
     console.log(`${u.username}: name "${u.displayName}", persona ${u.persona ? "set" : "empty"}`);
