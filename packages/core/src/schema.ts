@@ -106,6 +106,21 @@ const MIGRATIONS: string[] = [
   `
     ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT '';
   `,
+  // 9: personas. Each account can keep up to five, and exactly one can be selected.
+  `
+    CREATE TABLE IF NOT EXISTS personas (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      personality  TEXT NOT NULL,
+      picture_path TEXT,
+      is_selected  INTEGER NOT NULL DEFAULT 0,
+      created_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_personas_user ON personas(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_personas_one_selected
+      ON personas(user_id) WHERE is_selected = 1;
+  `,
 ];
 
 function runMigrations(db: DB): void {
