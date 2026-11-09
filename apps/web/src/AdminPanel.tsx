@@ -98,6 +98,14 @@ export function AdminPanel({
 
   useEffect(() => {
     checkProviders();
+    api
+      .getMaintenance()
+      .then((m) => {
+        if (m.on !== state.maintenance) onChange({ ...state, maintenance: m.on });
+      })
+      .catch(() => undefined);
+    // Loads once, when the admin panel opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const modelNames = groups.flatMap((g) => g.models);

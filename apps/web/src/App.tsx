@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Navigate,
   Route,
@@ -12,6 +12,7 @@ import { api, ApiError, setUnauthorizedHandler, tokenStore, type CharacterView, 
 import { ChatScreen } from "./Chat";
 import { CharacterForm } from "./CharacterForm";
 import { Home } from "./Home";
+import { LockdownPage } from "./LockdownPage";
 import { LoginScreen } from "./LoginScreen";
 import { MaintenancePage } from "./MaintenancePage";
 import { PasswordForm } from "./PasswordForm";
@@ -23,6 +24,8 @@ applyPrefs(loadPrefs());
 
 // How often a logged-in user re-checks the maintenance switch, in milliseconds
 const MAINTENANCE_CHECK_MS = 15_000;
+// How often the lockdown page checks whether the server is back, in milliseconds
+const LOCKDOWN_CHECK_MS = 10_000;
 
 interface Maintenance {
   on: boolean;
@@ -217,11 +220,32 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The server's maintenance switch, as the app last saw it
   const [maintenance, setMaintenance] = useState<Maintenance>({ on: false, message: "" });
+  // True while the app can't reach the server
+  const [lockdown, setLockdown] = useState(false);
+  // The last page the user was on, so they return there when the server is back
+  const returnTo = useRef("/home");
 
   // Asks the server whether maintenance is on, and stores the answer
   const checkMaintenance = () => {
     api.getMaintenance().then(setMaintenance).catch(() => undefined);
   };
+
+  // Tries the server once. If it answers, reload the last page, so the whole app starts fresh.
+  const checkServer = async () => {
+    try {
+      await api.health();
+      window.location.replace(returnTo.current);
+    } catch {
+      // Still down. The page stays on lockdown and tries again.
+    }
+  };
+
+  // Remember the last page that isn't an error page
+  useEffect(() => {
+    if (!location.pathname.startsWith("/error")) {
+      returnTo.current = location.pathname + location.search;
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -234,6 +258,10 @@ export default function App() {
     const onMaintenance = (e: Event) =>
       setMaintenance({ on: true, message: (e as CustomEvent<string>).detail });
     window.addEventListener("akeru:maintenance", onMaintenance);
+
+    // Any request that can't reach the server turns the lockdown page on
+    const onLockdown = () => setLockdown(true);
+    window.addEventListener("akeru:lockdown", onLockdown);
 
     if (tokenStore.get()) {
       api
@@ -248,8 +276,18 @@ export default function App() {
       setChecking(false);
     }
 
-    return () => window.removeEventListener("akeru:maintenance", onMaintenance);
+    return () => {
+      window.removeEventListener("akeru:maintenance", onMaintenance);
+      window.removeEventListener("akeru:lockdown", onLockdown);
+    };
   }, []);
+
+  // While in lockdown, keep checking the server in the background
+  useEffect(() => {
+    if (!lockdown) return;
+    const timer = setInterval(checkServer, LOCKDOWN_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [lockdown]);
 
   // Once someone is logged in, check the maintenance switch now, then every few seconds
   useEffect(() => {
@@ -281,10 +319,16 @@ export default function App() {
     setShowPassword(true);
   };
 
-  if (checking) return <Splash />;
-
   const path = location.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+  const onLockdownPage = path === "/error" && new URLSearchParams(location.search).get("type") === "lockdown";
+
+  // Lockdown comes first: whatever the user was doing, they see the lockdown page
+  if (lockdown) {
+    if (!onLockdownPage) return <Navigate to="/error?type=lockdown" replace />;
+    return <LockdownPage onRetry={checkServer} />;
+  }
+
+  if (checking) return <Splash />;
 
   // Logged out: only the public pages are open. Anything else goes to login, remembering the address.
   if (!me) {

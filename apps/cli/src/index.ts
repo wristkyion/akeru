@@ -25,6 +25,8 @@ import {
   listSessions,
   revokeUserSessions,
   startOwnedChat,
+  getMaintenance,
+  setMaintenance,
   type CharacterPatch,
   type CharacterView,
   type User,
@@ -424,6 +426,39 @@ users
   .action((username: string) => {
     const n = revokeUserSessions(db, username);
     console.log(`Revoked ${n} session(s) for ${username}`);
+  });
+
+// ---- Maintenance (run on the server PC, works even when the web app is locked) ----
+
+const maintenance = program
+  .command("maintenance")
+  .description("Turn maintenance mode on or off, or show its status");
+
+maintenance
+  .command("status")
+  .description("Show whether maintenance is on, and its message")
+  .action(() => {
+    const m = getMaintenance(db);
+    console.log(m.on ? "Maintenance: ON" : "Maintenance: off");
+    if (m.on && m.message) console.log(`Message: ${m.message}`);
+  });
+
+maintenance
+  .command("on")
+  .description("Turn maintenance on. Regular users are sent to the maintenance page.")
+  .option("-m, --message <text>", "message shown to users", "Akeru is under maintenance. Please try again later.")
+  .action((opts: { message: string }) => {
+    setMaintenance(db, { on: true, message: opts.message.slice(0, 200) });
+    console.log("Maintenance: ON");
+    console.log(`Message: ${opts.message}`);
+  });
+
+maintenance
+  .command("off")
+  .description("Turn maintenance off. Users can use the app again.")
+  .action(() => {
+    setMaintenance(db, { on: false, message: getMaintenance(db).message });
+    console.log("Maintenance: off");
   });
 
 // ---- Run ----

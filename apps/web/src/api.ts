@@ -112,7 +112,6 @@ export class ApiError extends Error {
 }
 
 // Thrown when the server is in maintenance and the user isn't an admin.
-// The app catches this and shows the maintenance page.
 export class MaintenanceError extends Error {
   constructor(message: string) {
     super(message);
@@ -134,6 +133,21 @@ let unauthorizedHandler: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: () => void): void {
   unauthorizedHandler = handler;
+}
+
+// Tells the app the server can't be reached, so it shows the lockdown page
+function reportUnreachable(): void {
+  window.dispatchEvent(new CustomEvent("akeru:lockdown"));
+}
+
+// True when the answer came from something in front of the server (a gateway, or the
+// dev proxy) rather than from the Akeru server itself. Akeru's own errors are JSON.
+function isGatewayDown(status: number, data: unknown): boolean {
+  return (
+    status === 502 ||
+    status === 504 ||
+    (status === 500 && (data === null || typeof data === "string"))
+  );
 }
 
 interface RequestOptions {
@@ -176,6 +190,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
+    reportUnreachable();
     throw new ApiError("Can't reach the server. Is it running?", 0);
   }
 
@@ -183,14 +198,18 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const data = text ? safeJson(text) : null;
 
   if (!res.ok) {
-    // The server refuses chat writes during maintenance with a 503 and a message
+    if (isGatewayDown(res.status, data)) {
+      reportUnreachable();
+      throw new ApiError("Can't reach the server. Is it running?", res.status);
+    }
+
+    // The server refuses chat writes during maintenance with a 503 and a message.
+    // The event switches the app to the maintenance page from any action.
     if (res.status === 503 && data && typeof data === "object" && "message" in data) {
       const message = String((data as { message: unknown }).message);
-      // Show the maintenance page for every action, not only the ones that check for it
       window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: message }));
       throw new MaintenanceError(message);
     }
-    
 
     if (res.status === 401 && auth) {
       tokenStore.clear();
@@ -230,6 +249,7 @@ function deviceName(): string {
 }
 
 export const api = {
+  health: () => request<{ ok: boolean }>("/api/health", { auth: false }),
   publicConfig: () => request<{ signup: boolean }>("/api/public-config", { auth: false }),
   login: (username: string, password: string) =>
     request<LoginResult>("/api/login", {
@@ -312,13 +332,20 @@ export async function streamMessage(
       body: JSON.stringify(body),
     });
   } catch {
+    reportUnreachable();
     throw new ApiError("Can't reach the server. Is it running?", 0);
   }
 
   if (!res.ok) {
     const data = safeJson(await res.text());
+    if (isGatewayDown(res.status, data)) {
+      reportUnreachable();
+      throw new ApiError("Can't reach the server. Is it running?", res.status);
+    }
     if (res.status === 503 && data && typeof data === "object" && "message" in data) {
-      throw new MaintenanceError(String((data as { message: unknown }).message));
+      const message = String((data as { message: unknown }).message);
+      window.dispatchEvent(new CustomEvent("akeru:maintenance", { detail: message }));
+      throw new MaintenanceError(message);
     }
     if (res.status === 401) {
       tokenStore.clear();
