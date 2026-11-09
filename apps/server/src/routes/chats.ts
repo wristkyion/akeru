@@ -12,6 +12,7 @@ import {
   renameOwnChat,
   sendChatMessage,
   startOwnedChat,
+  promptProfileFor,
   type Chat,
   type User,
 } from "@chars/core";
@@ -99,7 +100,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         model: parsed.data.model,
         options: policyToOptions(policy),
         historyLimit: policy.contextMessages,
-        user: { name: actor.displayName, persona: actor.persona },
+        user: promptProfileFor(ctx.db, actor),
         actor,
         dailyLimit: ctx.settings.limits.dailyMessages,
       });
@@ -153,7 +154,7 @@ export async function chatRoutes(app: FastifyInstance, ctx: AppContext) {
         model: parsed.data.model,
         options: policyToOptions(policy),
         historyLimit: policy.contextMessages,
-        user: { name: actor.displayName, persona: actor.persona },
+        user: promptProfileFor(ctx.db, actor),
         actor,
         dailyLimit: ctx.settings.limits.dailyMessages,
         onToken: (token) => sendEvent("token", { text: token }),

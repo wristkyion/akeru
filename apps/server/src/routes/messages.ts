@@ -9,6 +9,7 @@ import {
   generateNext,
   getGenerationPolicy,
   policyToOptions,
+  promptProfileFor,
   type ReplyOptions,
   type User,
 } from "@chars/core";
@@ -45,7 +46,7 @@ export async function messageRoutes(app: FastifyInstance, ctx: AppContext) {
       model: body.model,
       options: policyToOptions(policy),
       historyLimit: policy.contextMessages,
-      user: { name: actor.displayName, persona: actor.persona },
+      user: promptProfileFor(ctx.db, actor),
       actor,
       dailyLimit: ctx.settings.limits.dailyMessages,
     };

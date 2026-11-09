@@ -145,3 +145,13 @@ export function deletePersona(db: DB, userId: string, personaId: string): void {
     }
   })();
 }
+// The name and text the chat prompt uses for this account.
+// The selected persona's personality wins. Otherwise the account's own persona or bio is used.
+export function promptProfileFor(
+  db: DB,
+  user: { id: string; displayName: string; persona: string; bio: string },
+): { name: string; persona: string } {
+  const selected = getSelectedPersona(db, user.id);
+  const text = selected?.personality || user.persona || user.bio || "";
+  return { name: user.displayName, persona: text };
+}

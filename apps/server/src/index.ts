@@ -6,6 +6,7 @@ import { createProviderRegistry, loadProviderConfigs } from "@chars/core";
 import type { AppContext } from "./context.js";
 import { characterRoutes } from "./routes/characters.js";
 import { chatRoutes } from "./routes/chats.js";
+import { personaRoutes } from "./routes/personas.js";
 import { modelRoutes } from "./routes/models.js";
 import { existsSync } from "node:fs";
 import { guard } from "./guard.js";
@@ -34,6 +35,7 @@ app.addHook("onRequest", guard(ctx));
 await authRoutes(app, ctx);
 await characterRoutes(app, ctx);
 await chatRoutes(app, ctx);
+await personaRoutes(app, ctx);
 await messageRoutes(app, ctx);
 await modelRoutes(app, ctx);
 
