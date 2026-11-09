@@ -11,6 +11,7 @@ A local, self-hosted character chat app, similar to Character.AI. Run it on your
 - **Sign up with email:** email is required for new accounts and kept private. Each email can be used by one account only.
 - **Profile:** display name and bio are saved on the server, from Settings, so they follow your account to every device. Chats use the display name.
 - **Account information:** Settings shows your username, email, role, and join date, from the server. Only you see them.
+- **Personas:** each account can keep up to five personas, each with a name and personality text. One is selected at a time, and the selected one tells characters who you are in every chat. Personas are optional: with none selected, your name and bio are used. Deleting the selected persona selects the oldest remaining one.
 - **Change password:** from Settings, or from the CLI for a forced reset.
 - **Open sign-up (optional):** new people can create their own accounts at `/signup`. Turn it on or off in settings.
 - **Visibility:** characters are public (everyone can chat) or private (only the owner can chat; the admin can see that it exists).
@@ -138,6 +139,7 @@ Models are referenced as `providerId/modelId`, for example `9router/claude-haiku
 | Create, list, disable, and reset users | Yes (CLI, on the server PC) | No |
 | See user emails | Yes (CLI `user list`) | Own email only |
 | Edit display name and bio | Own account | Own account |
+| Manage personas | Own account | Own account |
 | See and revoke sessions | Yes | Own sessions only |
 | Set generation parameters and the prompt warning | Yes (Admin panel → Models) | No |
 | Use the app during maintenance | Yes | No (sent to the maintenance page) |
@@ -196,6 +198,11 @@ Every route except the public ones requires a login token. Send it as `Authoriza
 | PATCH | `/api/me/profile` | Logged in | Save your display name and bio |
 | POST | `/api/me/password` | Logged in | Change your own password |
 | GET | `/api/me/usage` | Logged in | Messages sent today and the daily limit |
+| GET | `/api/personas` | Logged in | Your personas, with the selected one marked, and the limit |
+| POST | `/api/personas` | Logged in | Add a persona (name and personality). The first one is selected |
+| PUT | `/api/personas/:id` | Persona owner | Change a persona's name or personality |
+| POST | `/api/personas/:id/select` | Persona owner | Make this persona the selected one |
+| DELETE | `/api/personas/:id` | Persona owner | Delete a persona. The oldest remaining one is selected |
 | GET | `/api/generation-policy` | Logged in | The generation parameters and prompt warning settings in effect |
 | PUT | `/api/generation-policy` | Admin | Change the generation parameters and prompt warning for everyone |
 | GET | `/api/characters` | Logged in | Characters you can see |
@@ -218,9 +225,9 @@ Every route except the public ones requires a login token. Send it as `Authoriza
 
 Login returns the token once. The server stores only a hash of it, so a leaked database can't be used to log in. Tokens expire after 30 days.
 
-Generation settings in send and generate requests are validated, but the server uses the admin's policy instead, so values sent from the browser don't change the model's behavior.
+Generation settings in send and generate requests are validated, but the server uses the admin's policy instead, so values sent from the browser don't change the model's behavior. The persona used in a chat is read from the database, so the browser can't change it during a chat either.
 
-Failed requests return these codes: `400` for invalid input, `429` for the daily limit or too many attempts, `503` for maintenance, `502` when the model call fails. Failed sends save nothing, so retrying can't create duplicate messages.
+Failed requests return these codes: `400` for invalid input, `404` for something not found or not yours, `429` for the daily limit or too many attempts, `503` for maintenance, `502` when the model call fails. Failed sends save nothing, so retrying can't create duplicate messages.
 
 ## CLI
 
@@ -299,7 +306,7 @@ Open `http://localhost:3000` (built) or `http://localhost:5173` (dev server).
 - **Settings** opens as a modal, from the sidebar or the chat. It has these sections:
   - **Profile:** your account information (username, email, role, join date), and your display name and bio, saved on the server.
   - **Account:** email, change password, delete account (disabled until the backend).
-  - **Chat:** template, the model set by the admin, reply animation (Instant or Smooth), the parameters note, and personas (browser-only for now).
+  - **Chat:** template, the model set by the admin, reply animation (Instant or Smooth), the parameters note, and personas. Personas are saved on the server, with Select, Edit, and Delete for each.
   - **Display:** language, dark or light theme, and round or square icons.
   - **Advanced:** debug info and clearing browser data.
   - **Admin panel** (admins only): overview, accounts, plans, models (including the generation parameters and the prompt warning), moderation, and system (including maintenance mode).
@@ -329,14 +336,14 @@ To restore, stop the server, copy a backup over `config\chars.db`, and start the
 
 ## Tests
 
-Unit tests cover the database, accounts, passwords, sign-up rules, visibility, sessions, login limits, the daily limit, tags, placeholders, streaming, chat titles, password change, message actions, and generation:
+Unit tests cover the database, accounts, emails, passwords, sign-up rules, visibility, sessions, login limits, the daily limit, tags, placeholders, streaming, chat titles, password change, message actions, generation, and personas:
 
 ```powershell
 cd packages\core
 pnpm test
 ```
 
-Expect the full suite to pass with no failures. Run it after any change in `packages\core`.
+Expect 51 passing tests and no failures. Run it after any change in `packages\core`.
 
 End-to-end checks run against a running server. They log in as both accounts, test visibility, permissions, chat privacy, failed sends, and logout, then remove their own test characters. They never call a model.
 
@@ -370,10 +377,13 @@ Run both checks after any server or route change: unit tests first, then the end
 - **`400 Bad Request` when saving the admin policy:** restart the server, so it accepts the new fields. Then save again.
 - **`USERNAME is not defined` or `RESERVED_USERNAMES is not defined`:** a constant was lost while editing `auth.ts`. Keep both constants at the top of the file, outside any function.
 - **`that email is already in use` at signup:** the email belongs to an existing account. Use `pnpm cli user list` to see which one.
+- **Persona replies all sound the same:** restart the server, since the chat prompt changes load only at restart. Then check the selected persona with `GET /api/personas`.
+- **`persona not found` (404):** the persona id is wrong, or belongs to another account. Refresh the Settings list.
+- **`you can keep up to 5 personas`:** delete one before adding another.
 - **Lockdown page doesn't return you to the chat:** make sure the server is running again. The page checks every 10 seconds, or press **Try again**.
 - **`ERR_ADDRESS_UNREACHABLE` on the phone:** see **Phone access**.
 - **Blank page, or `X is not defined` in the browser console:** a file was edited partly. Replace the whole file, and check that every component you use is imported.
-- **Duplicate declarations in the dev server terminal** (`has already been declared`): a line was pasted twice. Delete the second copy.
+- **Duplicate declarations in the dev server terminal** (`has already been declared`): a line was pasted twice. Delete the second copy. Also check that no old state or function from an earlier version remains in the same file.
 - **`Multiple exports with the same name`:** a function was pasted twice. Search the file for the name and delete the older copy.
 - **`duplicate column name` on startup:** the migration list was edited out of order. Keep the existing migrations in place, and add new ones only at the end.
 - **`login required` (401):** the request has no token, or the token was revoked. Log in again.
@@ -391,13 +401,13 @@ Run both checks after any server or route change: unit tests first, then the end
 ```
 akeru/
 ├─ apps/
-│  ├─ server/     Fastify API, login, sessions, maintenance, serves the web app
+│  ├─ server/     Fastify API, login, sessions, maintenance, personas, serves the web app
 │  │  └─ scripts/e2e.ts   end-to-end checks
 │  ├─ web/        React + Vite web app (routes, sidebar, chat, settings, admin, error pages)
 │  └─ cli/        Terminal commands, terminal UI (Ink), maintenance commands
 ├─ packages/
-│  └─ core/       Database, accounts, emails, profiles, sign-up, sessions, visibility,
-│                 limits, messages, generation policy, maintenance, providers
+│  └─ core/       Database, accounts, emails, profiles, personas, sign-up, sessions,
+│                 visibility, limits, messages, generation policy, maintenance, providers
 ├─ config/        settings.example.json (template), settings.json, secrets.json, chars.db
 ├─ backup-akeru.ps1   copies chars.db to a dated backup file
 ├─ README.md
@@ -406,8 +416,12 @@ akeru/
 
 ## Status
 
-Working: accounts with usernames and emails, login with either, open sign-up with a required email, display name and bio saved on the server, account information in Settings, sessions, visibility rules, daily limits, past chats with their own addresses, message actions, Generate, streaming and the reveal, admin-controlled generation parameters, the context size line and prompt warning, the maintenance workflow (web and CLI), the lockdown page, the login and signup routes, the Settings modal, the character panel, phone drawers, the terminal UI, and the CLI.
+Working: accounts with usernames and emails, login with either, open sign-up with a required email, display name and bio saved on the server, account information in Settings, personas (up to five per account, one selected, managed from Settings and used in every chat), sessions, visibility rules, daily limits, past chats with their own addresses, message actions, Generate, streaming and the reveal, admin-controlled generation parameters, the context size line and prompt warning, the maintenance workflow (web and CLI), the lockdown page, the login and signup routes, the Settings modal, the character panel, phone drawers, the terminal UI, and the CLI.
 
-Prototype only: most of the admin panel, the Chat, Display, and Advanced settings, and personas. They save in the browser, and the backend will replace them.
+Prototype only: most of the admin panel, and the Chat template and animation, Display, and Advanced settings. They save in the browser, and the backend will replace them.
 
-Not yet built: personas as selectable profiles, profile pictures, email verification and password reset, and the server-side settings for display and chat.
+Not yet built: persona pictures, the account picture, email verification and password reset, the Account page's delete and email change, and the server-side settings for display and chat.
+
+## Where we stopped
+
+The persona feature is complete for text: the table, the rules, the routes, the chat prompt, and the Settings list. The next items are the picture upload for personas and the account, then the file and folder reorganization as a separate step once the features settle.

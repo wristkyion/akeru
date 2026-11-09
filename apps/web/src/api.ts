@@ -104,6 +104,15 @@ export interface GenerationPolicy {
   warnAt: number;
 }
 
+export interface Persona {
+  id: string;
+  name: string;
+  personality: string;
+  pictureUrl: string | null;
+  selected: boolean;
+  createdAt: number;
+}
+
 export class ApiError extends Error {
   status: number;
   retryAfter: number | null;
@@ -276,6 +285,15 @@ export const api = {
         auth: false,
       }),
   logout: () => request<{ ok: boolean }>("/api/logout", { method: "POST", body: {} }),
+  personas: () => request<{ max: number; personas: Persona[] }>("/api/personas"),
+  createPersona: (name: string, personality: string) =>
+    request<Persona>("/api/personas", { method: "POST", body: { name, personality } }),
+  updatePersona: (id: string, name: string, personality: string) =>
+    request<Persona>(`/api/personas/${id}`, { method: "PUT", body: { name, personality } }),
+  selectPersona: (id: string) =>
+    request<Persona>(`/api/personas/${id}/select`, { method: "POST" }),
+  deletePersona: (id: string) =>
+    request<{ ok: boolean }>(`/api/personas/${id}`, { method: "DELETE" }),
   saveProfile: (displayName: string, bio: string) =>
     request<Me>("/api/me/profile", { method: "PATCH", body: { displayName, bio } }),
   me: () => request<Me>("/api/me"),

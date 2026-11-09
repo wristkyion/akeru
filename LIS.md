@@ -5,7 +5,7 @@
 ### Foundation
 - [x] Monorepo setup (pnpm workspace: core, server, web, cli)
 - [x] SQLite data layer: characters, chats, messages, cascade delete
-- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 8
+- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 9
 - [x] OpenAI-compatible provider adapter
 - [x] Model listing from all providers
 - [x] Provider config and secrets loading
@@ -26,7 +26,6 @@
 - [x] User accounts with admin and user roles
 - [x] Passwords stored as salted scrypt hashes
 - [x] First admin claims existing characters and chats
-- [x] Display name and persona per account (persona used in the chat prompt)
 - [x] Disable and enable accounts; the last enabled admin cannot be disabled
 - [x] Password reset from the CLI, which forces a change at next login
 - [x] Change your own password from Settings, signing out other devices
@@ -41,6 +40,19 @@
 - [x] Character visibility: public or private, owner and admin rules
 - [x] Chats private to their owner, including from the admin
 - [x] Changing a character to private cuts off other users' chats
+
+### Personas
+- [x] Personas table (migration 9): up to five per account, with one selected at a time, enforced by the database
+- [x] Personas are optional: with none selected, the account's name and bio are used
+- [x] Creating the first persona selects it automatically
+- [x] Deleting the selected persona selects the oldest remaining one
+- [x] Core rules: create, edit, select, delete, and list, with the five-persona limit checked in core
+- [x] Only the owner can change a persona
+- [x] Routes: `GET`, `POST`, `PUT`, `DELETE /api/personas`, and `POST /api/personas/:id/select`
+- [x] Selected persona's personality is used in every chat prompt: send, stream, refresh, edit with resend, and generate
+- [x] Settings → Chat list with Select, Edit, and Delete, saved on the server
+- [x] Core and route tests for personas, plus a PowerShell test guide
+- [ ] Persona picture (optional)
 
 ### Sessions and login
 - [x] Login returns a token; only its hash is stored
@@ -139,7 +151,7 @@
 - [x] Settings sections: Profile, Account, Chat, Display, Advanced, and Admin (admins only)
 - [x] Profile: account information (from the server) and display name and bio (saved on the server)
 - [x] Account: email (read-only), change password, delete account (disabled until the backend)
-- [x] Chat: template, model (set by admin), reply animation, parameters note, personas (browser-only for now)
+- [x] Chat: template, model (set by admin), reply animation, parameters note, personas (saved on the server)
 - [x] Display: language (saved only), theme, round or square icons
 - [x] Advanced: debug info, clear browser data
 - [x] Admin panel: overview with a 7-day chart, accounts, plans, models (generation parameters, prompt warning, provider check), moderation (reports and blocked words), and system (access, maintenance, announcement, features, activity log)
@@ -164,7 +176,7 @@
 - [x] Terminal UI: shows which account is running it
 
 ### Testing
-- [x] Unit tests cover accounts, emails, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, titles, password change, message actions, generation, and login
+- [x] Unit tests: 51 passing, covering accounts, emails, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, titles, password change, message actions, generation, personas, and login
 - [x] End-to-end script: 21 checks against the running server, with self-cleanup
 
 ### Phone access
@@ -174,21 +186,13 @@
 
 ## Next
 
-### Personas (current focus)
-- [ ] Persona as a selectable profile: each account keeps up to five, and one is selected as active
-- [ ] Each persona has a name and its own personality text
-- [ ] The active persona is sent in every chat prompt, in place of the single account persona
-- [ ] Persona profile picture, optional
-- [ ] If a persona has no picture, the account profile picture is used
+### Persona picture and account picture
+- [ ] Persona picture upload, optional, with a size and type limit
+- [ ] If a persona has no picture, the account picture is used
 - [ ] If the account has no picture, the initials avatar is used
-- [ ] Personas saved on the server, not in the browser
-- [ ] Personas list in Settings → Chat, with Select, Edit, and Delete for each
-- [ ] Persona limit of five enforced on the server
-
-### Profile picture
-- [ ] Account profile picture upload, with a size and type limit
+- [ ] Account picture upload, with a size and type limit
 - [ ] Account picture shown in Settings → Profile and in the sidebar
-- [ ] Account picture used as the fallback for personas
+- [ ] Picture size and file type limits (open decision)
 
 ### Settings backend
 - [ ] Display preferences saved on the server (theme, icon shape, language), so they follow the account
@@ -239,6 +243,7 @@
 - [ ] The chat parameters in the terminal UI, following the admin's policy
 - [ ] Create and edit characters inside the terminal UI
 - [ ] CLI command to add or change a user's email
+- [ ] CLI command to manage personas
 
 ### Providers and models
 - [ ] Model list: group by provider prefix, add search
@@ -246,8 +251,8 @@
 - [ ] Remove the unused `user` block from the server code path, if any remains
 
 ### Housekeeping
+- [ ] Reorganize folders: group `apps/web/src` into `pages`, `components`, and `lib`, and `packages/core/src` into `accounts`, `chat`, `providers`, and `settings`. Do this as one separate step, after the features are done, using `git mv` and updating imports together.
 - [ ] Schedule `backup-akeru.ps1` daily with Windows Task Scheduler (optional, the script works when run by hand)
-- [ ] Merge the `routing` branch into `main` once the persona work is tested
 - [ ] Remove unused CSS: the old `.chat-head`, `.sidebar`, `.cp-hero`, and `.maintenance` rules, if any remain
 - [ ] Remove the older `packages/core/src/providers/provider.test.ts` if it duplicates the new tests
 - [ ] Remove the leftover `check-table.mjs` and `check-policy.mjs` helper files from `packages/core`, if they still exist
@@ -275,8 +280,8 @@
 
 ## Open decisions
 
-- [ ] Persona scope: one active persona for the whole account, or a choice per chat
-- [ ] Profile picture size and file type limits
+- [ ] Persona scope: one selected persona for the whole account (decided), or a choice per chat (later)
+- [ ] Picture size and file type limits
 - [ ] Whether an email change needs confirmation by the old email, once mail is set up
 
 ## Known issues
@@ -287,7 +292,7 @@
 - Anyone with access to the server PC can open `config\chars.db` directly and read everything.
 - Open sign-up lets anyone who can reach the server create an account. Turn it off in `settings.json` if the server is shared beyond your household.
 - Emails are not verified, and there is no password reset by email yet.
-- Display name and bio are saved on the server, but the other Settings sections, personas included, save only in the browser.
+- Display preferences, chat template and animation, and the admin panel's prototype data save only in the browser.
 - Daily limits count messages, not cost. Generate counts the same as a normal reply, but a long run of Generate presses can still use a lot of model time.
 - The prompt size warning is an estimate, using about four characters per token. A model with a larger real window may still handle a prompt the warning flags.
 - Long definitions and personalities can push older chat history out of small local models' context windows, without a warning from the model itself.
@@ -303,3 +308,4 @@
 - Greetings already saved in older chats keep their `{{user}}` text, since placeholders are filled only when a chat starts.
 - The character panel's icon for the chat bar on phones is a placeholder flag icon.
 - Some `500` errors after editing server files only clear with a server restart. Restart the server after any change under `apps\server` or `packages\core`.
+- The persona list in Settings has no picture yet, so personas show only their name and text.

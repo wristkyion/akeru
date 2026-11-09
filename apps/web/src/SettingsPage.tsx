@@ -1,8 +1,8 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { api, type Me } from "./api";
+import { api, type Me, type Persona } from "./api";
 import { AdminPanel } from "./AdminPanel";
 import { loadSettings, SETTINGS_KEY, type ChatSettings } from "./ChatSettings";
-import { MAX_PERSONAS, loadPrefs, savePrefs, type Persona, type Prefs } from "./prefs";
+import { MAX_PERSONAS, loadPrefs, savePrefs, type Prefs } from "./prefs";
 
 type Section = "admin" | "profile" | "account" | "chat" | "display" | "advanced";
 
@@ -17,14 +17,12 @@ const SECTIONS: { id: Section; label: string; adminOnly?: boolean }[] = [
 
 const TEMPLATES = ["default", "roleplay", "short replies", "storytelling"];
 
-const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-
 // The date an account was created, in a readable form
 const joinedText = (ms: number) =>
   new Date(ms).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" });
 
 function clearLocalData() {
-  if (!window.confirm("Clear saved settings and personas in this browser? You stay logged in.")) {
+  if (!window.confirm("Clear saved settings in this browser? You stay logged in.")) {
     return;
   }
   Object.keys(localStorage)
@@ -108,10 +106,28 @@ export function SettingsPage({
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
 
-  // Persona form
+  // Personas come from the server, so they follow the account
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [personaMax, setPersonaMax] = useState(MAX_PERSONAS);
   const [pName, setPName] = useState("");
   const [pText, setPText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [personaErr, setPersonaErr] = useState("");
+  const [personaBusy, setPersonaBusy] = useState(false);
+
+  function loadPersonas() {
+    api
+      .personas()
+      .then((r) => {
+        setPersonas(r.personas);
+        setPersonaMax(r.max);
+      })
+      .catch(() => setPersonaErr("Could not load personas."));
+  }
+
+  useEffect(() => {
+    loadPersonas();
+  }, []);
 
   // Escape closes the modal
   useEffect(() => {
@@ -122,14 +138,14 @@ export function SettingsPage({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Every change saves right away, since this is a prototype
+  // Every change saves right away
   function set<K extends keyof Prefs>(key: K, value: Prefs[K]) {
     const next = { ...prefs, [key]: value };
     setPrefs(next);
     savePrefs(next);
   }
 
-  // Chat settings, kept for the local send path (model choice). Parameters are admin-only now.
+  // Chat settings, kept for the local send path (model choice)
   function changeChat(next: ChatSettings) {
     setChat(next);
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
@@ -159,30 +175,34 @@ export function SettingsPage({
     setEditingId(null);
   }
 
+  // Runs one change on the server, then reloads the list
+  async function runPersona(task: () => Promise<unknown>) {
+    setPersonaBusy(true);
+    setPersonaErr("");
+    try {
+      await task();
+      loadPersonas();
+      resetPersonaForm();
+    } catch (err) {
+      setPersonaErr(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setPersonaBusy(false);
+    }
+  }
+
   function savePersona() {
     const name = pName.trim();
     const text = pText.trim();
     if (!name || !text) return;
-
-    let next: Persona[];
-    if (editingId) {
-      next = prefs.chat.personas.map((p) => (p.id === editingId ? { ...p, name, text } : p));
-    } else {
-      if (prefs.chat.personas.length >= MAX_PERSONAS) return;
-      next = [...prefs.chat.personas, { id: newId(), name, text }];
-    }
-    set("chat", { ...prefs.chat, personas: next });
-    resetPersonaForm();
+    if (editingId) void runPersona(() => api.updatePersona(editingId, name, text));
+    else void runPersona(() => api.createPersona(name, text));
   }
 
   function deletePersona(p: Persona) {
     if (!window.confirm(`Delete persona "${p.name}"?`)) return;
-    set("chat", { ...prefs.chat, personas: prefs.chat.personas.filter((x) => x.id !== p.id) });
-    if (editingId === p.id) resetPersonaForm();
+    void runPersona(() => api.deletePersona(p.id));
   }
 
-  const personas = prefs.chat.personas;
-  const atLimit = personas.length >= MAX_PERSONAS;
   const current = SECTIONS.find((s) => s.id === section);
 
   return (
@@ -305,7 +325,7 @@ export function SettingsPage({
             {section === "chat" && (
               <>
                 <p className="muted small">
-                  Prototype: changes save in this browser until the backend is connected.
+                  Prototype: template and animation save in this browser until the backend is connected.
                 </p>
                 <section className="set-card">
                   <Row label="Template" hint="The starting style for new chats.">
@@ -353,44 +373,64 @@ export function SettingsPage({
 
                 <section className="set-card">
                   <h3>
-                    Personas <span className="muted small">{personas.length}/{MAX_PERSONAS}</span>
+                    Personas <span className="muted small">{personas.length}/{personaMax}</span>
                   </h3>
                   <p className="muted small">
-                    A persona tells characters who you are. You can keep up to {MAX_PERSONAS}. Choosing one per chat comes with the backend.
+                    Your selected persona tells characters who you are in every chat. It's optional: with none selected, your name and bio are used. Only one can be selected at a time.
                   </p>
+
+                  {personas.length === 0 && <p className="muted small">No personas yet.</p>}
 
                   {personas.map((p) => (
                     <div key={p.id} className="persona">
                       <div className="persona-text">
-                        <strong>{p.name}</strong>
-                        <span className="muted small">{p.text}</span>
+                        <strong>
+                          {p.name} {p.selected && <span className="badge">Selected</span>}
+                        </strong>
+                        <span className="muted small">{p.personality}</span>
                       </div>
                       <div className="row-actions">
+                        {!p.selected && (
+                          <button
+                            className="tool-btn"
+                            disabled={personaBusy}
+                            onClick={() => void runPersona(() => api.selectPersona(p.id))}
+                          >
+                            Select
+                          </button>
+                        )}
                         <button
                           className="tool-btn"
+                          disabled={personaBusy}
                           onClick={() => {
                             setEditingId(p.id);
                             setPName(p.name);
-                            setPText(p.text);
+                            setPText(p.personality);
                           }}
                         >
                           Edit
                         </button>
-                        <button className="tool-btn danger-text" onClick={() => deletePersona(p)}>
+                        <button
+                          className="tool-btn danger-text"
+                          disabled={personaBusy}
+                          onClick={() => deletePersona(p)}
+                        >
                           Delete
                         </button>
                       </div>
                     </div>
                   ))}
 
-                  {atLimit && !editingId ? (
+                  {personaErr && <p className="error">{personaErr}</p>}
+
+                  {personas.length >= personaMax && !editingId ? (
                     <p className="muted small">
-                      You've reached the limit of {MAX_PERSONAS} personas. Delete one to add another.
+                      You've reached the limit of {personaMax} personas. Delete one to add another.
                     </p>
                   ) : (
                     <div className="persona-form">
                       <input
-                        placeholder="Name, for example Student"
+                        placeholder="Name, for example cool guy"
                         maxLength={40}
                         value={pName}
                         onChange={(e) => setPName(e.target.value)}
@@ -398,7 +438,7 @@ export function SettingsPage({
                       <textarea
                         rows={3}
                         maxLength={500}
-                        placeholder="Who you are, and what characters should know"
+                        placeholder="How characters should see you"
                         value={pText}
                         onChange={(e) => setPText(e.target.value)}
                       />
@@ -411,7 +451,7 @@ export function SettingsPage({
                         <button
                           className="pill-btn"
                           onClick={savePersona}
-                          disabled={!pName.trim() || !pText.trim()}
+                          disabled={personaBusy || !pName.trim() || !pText.trim()}
                         >
                           {editingId ? "Update persona" : "Add persona"}
                         </button>
@@ -495,7 +535,7 @@ export function SettingsPage({
                       </button>
                     </div>
                   </Row>
-                  <Row label="Clear browser data" hint="Removes saved settings and personas in this browser. You stay logged in.">
+                  <Row label="Clear browser data" hint="Removes saved settings in this browser. You stay logged in.">
                     <div>
                       <button className="pill-btn danger-text" onClick={clearLocalData}>
                         Clear
