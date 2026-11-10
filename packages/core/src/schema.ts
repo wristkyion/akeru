@@ -121,6 +121,17 @@ const MIGRATIONS: string[] = [
     CREATE UNIQUE INDEX IF NOT EXISTS idx_personas_one_selected
       ON personas(user_id) WHERE is_selected = 1;
   `,
+  // 10: profile pictures. Image files live in config/pictures (encrypted). The database keeps only ids.
+  `
+    ALTER TABLE users ADD COLUMN picture_id TEXT;
+    CREATE TABLE IF NOT EXISTS pictures (
+      id         TEXT PRIMARY KEY,
+      owner_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mime       TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pictures_owner ON pictures(owner_id);
+  `,
 ];
 
 function runMigrations(db: DB): void {

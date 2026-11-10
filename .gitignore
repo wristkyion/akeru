@@ -8,3 +8,5 @@ config/settings.json
 config/*.db-wal
 config/*.db-shm
 config/*.db-journal
+config/pictures/
+config/picture.key

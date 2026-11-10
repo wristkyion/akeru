@@ -16,3 +16,4 @@ export * from "./placeholders.js";
 export * from "./messages.js";
 export * from "./server-settings.js";
 export * from "./personas.js";
+export * from "./pictures.js";

@@ -16,6 +16,7 @@ export interface User {
   disabled: boolean;
   mustChangePassword: boolean;
   email: string | null;
+  pictureId: string | null;
   createdAt: number;
 }
 
@@ -38,6 +39,7 @@ type Row = {
   disabled: number;
   must_change_password: number;
   email: string | null;
+  picture_id: string | null;
   created_at: number;
 };
 
@@ -51,6 +53,7 @@ const toUser = (r: Row): User => ({
   disabled: r.disabled === 1,
   mustChangePassword: r.must_change_password === 1,
   email: r.email,
+  pictureId: r.picture_id ?? null,
   createdAt: r.created_at,
 });
 

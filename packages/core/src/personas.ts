@@ -27,7 +27,7 @@ const toPersona = (r: PersonaRow): Persona => ({
   id: r.id,
   name: r.name,
   personality: r.personality,
-  pictureUrl: r.picture_path ? `/api/personas/${r.id}/picture` : null,
+  pictureUrl: r.picture_path ? `/api/pictures/${r.picture_path}` : null,
   selected: r.is_selected === 1,
   createdAt: r.created_at,
 });

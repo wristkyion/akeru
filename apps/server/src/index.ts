@@ -13,6 +13,8 @@ import { guard } from "./guard.js";
 import { authRoutes } from "./routes/auth.js";
 import fastifyStatic from "@fastify/static";
 import { messageRoutes } from "./routes/messages.js";
+import multipart from "@fastify/multipart";
+import { pictureRoutes } from "./routes/pictures.js";
 
 // apps/server/src -> project root
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -22,6 +24,7 @@ const settings = loadSettings(configDir);
 const db = openDatabase(resolve(root, settings.database.path));
 
 const app = Fastify({ logger: true });
+await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
 
 const configs = loadProviderConfigs(configDir);
 const ctx: AppContext = {
@@ -37,6 +40,10 @@ await characterRoutes(app, ctx);
 await chatRoutes(app, ctx);
 await personaRoutes(app, ctx);
 await messageRoutes(app, ctx);
+await pictureRoutes(app, ctx, {
+  dir: resolve(configDir, "pictures"),
+  keyPath: resolve(configDir, "picture.key"),
+});
 await modelRoutes(app, ctx);
 
 app.get("/api/health", async () => ({
