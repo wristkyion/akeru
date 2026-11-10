@@ -5,7 +5,7 @@
 ### Foundation
 - [x] Monorepo setup (pnpm workspace: core, server, web, cli)
 - [x] SQLite data layer: characters, chats, messages, cascade delete
-- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 9
+- [x] Schema migrations with a version number (`PRAGMA user_version`), currently version 10
 - [x] OpenAI-compatible provider adapter
 - [x] Model listing from all providers
 - [x] Provider config and secrets loading
@@ -21,6 +21,7 @@
 - [x] Placeholders `{{char}}` and `{{user}}` in greetings and character text
 - [x] Create, edit, and delete characters in the web app
 - [x] Delete is inside the edit form, with a confirmation, for owners only
+- [x] Character picture: uploaded on the character form (owner only), shown on cards, in the panel, and in chat bubbles
 
 ### Accounts and profile
 - [x] User accounts with admin and user roles
@@ -36,23 +37,38 @@
 - [x] Account information in Settings (username, email, role, join date), from the server
 - [x] Display name and bio saved on the server from Settings (migration 8, `PATCH /api/me/profile`)
 - [x] Bio is set only from Settings, not on the signup form
+- [x] Account picture (migration 10): uploaded in Settings → Profile, shown in the sidebar, Settings, chat bubbles, and cards
+- [x] Account and character pictures visible to anyone who can see the account or character
 - [x] Open sign-up behind a setting (`auth.signup`), with reserved names and attempt limits
 - [x] Character visibility: public or private, owner and admin rules
 - [x] Chats private to their owner, including from the admin
 - [x] Changing a character to private cuts off other users' chats
+
+### Pictures
+- [x] Pictures stored in `config\pictures\` as encrypted files (AES-256-GCM), with random names and no extension
+- [x] Encryption key in `config\picture.key`, created on first start
+- [x] Upload checks: JPEG, PNG, or WebP only, checked by file contents, up to 2 MB, no resizing
+- [x] Database stores only picture ids (migration 10, `pictures` table)
+- [x] Pictures served only after an access check; files are decrypted only on request
+- [x] Replacing or removing a picture deletes the old file
+- [x] Shared `Avatar` component: picture if there is one, otherwise initials, everywhere
+- [x] Persona picture: uploaded in Settings → Chat, shown in the persona list, and used for the selected persona's bubbles in chat
+- [x] Picture tests: round trip, no readable file on disk, refused non-images, size limit, tamper check, access rules
 
 ### Personas
 - [x] Personas table (migration 9): up to five per account, with one selected at a time, enforced by the database
 - [x] Personas are optional: with none selected, the account's name and bio are used
 - [x] Creating the first persona selects it automatically
 - [x] Deleting the selected persona selects the oldest remaining one
-- [x] Core rules: create, edit, select, delete, and list, with the five-persona limit checked in core
+- [x] A persona can be unselected, even when it's the only one
+- [x] Core rules: create, edit, select, unselect, delete, and list, with the five-persona limit checked in core
 - [x] Only the owner can change a persona
-- [x] Routes: `GET`, `POST`, `PUT`, `DELETE /api/personas`, and `POST /api/personas/:id/select`
+- [x] Routes: `GET`, `POST`, `PUT`, `DELETE /api/personas`, and `POST /api/personas/:id/select` and `/unselect`
 - [x] Selected persona's personality is used in every chat prompt: send, stream, refresh, edit with resend, and generate
-- [x] Settings → Chat list with Select, Edit, and Delete, saved on the server
+- [x] Selected persona's name is used as the name the character calls you, in prompts and in new chat greetings
+- [x] Prompt tells the character to use the name it is given, even over earlier messages in the chat
+- [x] Settings → Chat list with Select, Unselect, Edit, Delete, and Picture, saved on the server
 - [x] Core and route tests for personas, plus a PowerShell test guide
-- [ ] Persona picture (optional)
 
 ### Sessions and login
 - [x] Login returns a token; only its hash is stored
@@ -83,6 +99,7 @@
 - [x] Generate: the composer button adds one more message from the character after its last reply
 - [x] Generate is only available when the box is empty and the character spoke last
 - [x] Generate counts against the daily limit, the same as a normal reply
+- [x] Multi-bubble replies from one request are shown as separate bubbles
 
 ### Generation policy and prompt (admin)
 - [x] Generation parameters set by the admin for every user, in Admin panel → Models
@@ -128,16 +145,16 @@
 - [x] `/signup` sends to `/login` when sign-up is closed
 - [x] The `next` address is checked, so it can't send users outside the app
 - [x] `/error?type=maintenance` and `/error?type=lockdown` as error pages
+- [x] Login form checks the email only at sign-up
 
 ### Web app: layout
 - [x] Character-style layout: one sidebar with your name, search, Home, Create, characters, and their chats
-- [x] Sidebar footer: Settings and Log out (theme switch moved into Settings)
+- [x] Sidebar footer: Settings and Log out
 - [x] Character panel on the right of the chat, with profile, like, share, report, description, and tags
 - [x] Character profile header: avatar beside name and author
 - [x] Chat header removed; New chat lives in the sidebar
 - [x] Phones: chat bar with sidebar and character icons, each opening a slide-in drawer
 - [x] Phones: dark area behind a drawer closes it
-- [x] Light and dark themes, switched in Settings
 
 ### Web app: chat
 - [x] Chat screen: greeting, your message shown right away, typing indicator
@@ -149,12 +166,13 @@
 ### Web app: settings and admin
 - [x] Settings opens as a modal over the current screen (close with ×, a tap outside, or Escape)
 - [x] Settings sections: Profile, Account, Chat, Display, Advanced, and Admin (admins only)
-- [x] Profile: account information (from the server) and display name and bio (saved on the server)
-- [x] Account: email (read-only), change password, delete account (disabled until the backend)
-- [x] Chat: template, model (set by admin), reply animation, parameters note, personas (saved on the server)
-- [x] Display: language (saved only), theme, round or square icons
-- [x] Advanced: debug info, clear browser data
+- [x] Profile: account information (from the server), account picture, and display name and bio (saved on the server)
+- [x] Account: email (read-only), change password
+- [x] Chat: model (set by admin), reply animation, parameters note, personas (saved on the server)
+- [x] Display: language, theme, round or square icons (saved in the browser for now)
+- [x] Advanced: debug info, clear browser data (saved in the browser for now)
 - [x] Admin panel: overview with a 7-day chart, accounts, plans, models (generation parameters, prompt warning, provider check), moderation (reports and blocked words), and system (access, maintenance, announcement, features, activity log)
+- [x] Admin panel reads maintenance from the server when it opens
 - [x] Admin CSV export of the user list
 
 ### Web app: other
@@ -176,7 +194,7 @@
 - [x] Terminal UI: shows which account is running it
 
 ### Testing
-- [x] Unit tests: 51 passing, covering accounts, emails, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, titles, password change, message actions, generation, personas, and login
+- [x] Unit tests: 58 passing, covering accounts, emails, passwords, sign-up, visibility, sessions, limits, tags, placeholders, streaming, titles, password change, message actions, generation, personas, pictures, and login
 - [x] End-to-end script: 21 checks against the running server, with self-cleanup
 
 ### Phone access
@@ -186,19 +204,30 @@
 
 ## Next
 
-### Persona picture and account picture
-- [ ] Persona picture upload, optional, with a size and type limit
-- [ ] If a persona has no picture, the account picture is used
-- [ ] If the account has no picture, the initials avatar is used
-- [ ] Account picture upload, with a size and type limit
-- [ ] Account picture shown in Settings → Profile and in the sidebar
-- [ ] Picture size and file type limits (open decision)
+### Settings: Account tab
+- [ ] Delete account: the user confirms with their password, their chats, personas, and pictures are removed, and the admin's characters with other users' chats are handled by a rule (see open decisions)
+
+### Settings: Chat tab
+- [ ] Remove the template setting
+- [ ] Hide the model selection from users; admins still set the model in Admin panel → Models
+- [ ] Hide the parameters from users; show them to admins only, in Settings → Chat
+- [ ] Reply animation and personas stay for all users
+
+### Settings: Display tab
+- [ ] Language: English, Indonesian, Simplified Chinese, and Japanese, saved on the server
+- [ ] Theme: Auto (follows the device), Dark, and Light, saved on the server
+- [ ] Remove the round or square icon setting
+- [ ] Display preferences follow the account to every device
+
+### Settings: Advanced tab (proposed, to confirm)
+- [ ] Choose which Advanced items to keep: debug info, export chats, clear browser data, sessions list
+- [ ] Sessions list with "sign out other devices"
+- [ ] Export chats as JSON (currently disabled)
+- [ ] Debug info shown to admins only
 
 ### Settings backend
-- [ ] Display preferences saved on the server (theme, icon shape, language), so they follow the account
-- [ ] Chat preferences saved on the server (reply animation and template)
+- [ ] Chat preferences saved on the server (reply animation)
 - [ ] Email change with a confirmation step
-- [ ] Delete account
 
 ### Account recovery (needs a mail service)
 - [ ] Email verification after signup
@@ -215,7 +244,7 @@
 - [ ] 7-day message counts from the database
 - [ ] Sign out everyone and require password change, on the server
 - [ ] Every admin action recorded in an audit log on the server
-- [ ] Prompt warning settings stored with the policy, and checked against the real model where possible
+- [ ] Prompt warning settings checked against the real model where possible
 
 ### Chat: next
 - [ ] Context size editable per chat, within the admin's limits (optional)
@@ -253,13 +282,15 @@
 ### Housekeeping
 - [ ] Reorganize folders: group `apps/web/src` into `pages`, `components`, and `lib`, and `packages/core/src` into `accounts`, `chat`, `providers`, and `settings`. Do this as one separate step, after the features are done, using `git mv` and updating imports together.
 - [ ] Schedule `backup-akeru.ps1` daily with Windows Task Scheduler (optional, the script works when run by hand)
-- [ ] Remove unused CSS: the old `.chat-head`, `.sidebar`, `.cp-hero`, and `.maintenance` rules, if any remain
+- [ ] Back up `config\picture.key` and `config\pictures\` together with `chars.db`
+- [ ] Remove unused CSS: the old `.chat-head`, `.sidebar`, `.cp-hero`, `.maintenance`, and `.cp-btn` rules, if any remain
 - [ ] Remove the older `packages/core/src/providers/provider.test.ts` if it duplicates the new tests
 - [ ] Remove the leftover `check-table.mjs` and `check-policy.mjs` helper files from `packages/core`, if they still exist
 
 ## Optional (set aside)
 
 - [ ] Stop button for streaming replies (cancels the reveal and saves the partial text, marked as cut off). Kept off the active list, to decide later.
+- [ ] Picture resizing on upload (decided against for now; 2 MB limit kept)
 
 ## Later
 
@@ -270,7 +301,7 @@
 - [ ] Native provider adapters for Anthropic and Google (non-OpenAI format)
 - [ ] OpenCode provider entry (waiting on endpoint details)
 - [ ] Character import and export
-- [ ] Avatar upload per character
+- [ ] Avatar upload per character (done for characters; see Pictures)
 - [ ] HTTPS for use outside a private network
 - [ ] Standalone server build (no Node install needed)
 - [ ] Tauri desktop app (wraps the web UI, starts the server)
@@ -280,8 +311,10 @@
 
 ## Open decisions
 
-- [ ] Persona scope: one selected persona for the whole account (decided), or a choice per chat (later)
-- [ ] Picture size and file type limits
+- [ ] Delete account: what happens to the admin's characters that other users have chats with (keep them, or block deletion until the admin reassigns or removes them)
+- [ ] Advanced tab: which items to keep (see Settings: Advanced tab)
+- [ ] Display: whether the Auto theme follows the operating system only, or also the time of day
+- [ ] Persona scope: one selected persona for the whole account (decided); a choice per chat (later)
 - [ ] Whether an email change needs confirmation by the old email, once mail is set up
 
 ## Known issues
@@ -289,23 +322,23 @@
 - Passwords travel unencrypted over plain HTTP on a local network. Tailscale encrypts traffic, so use it for phones.
 - The login limiter lives in memory, so restarting the server clears any lock.
 - The admin can delete any character, including ones with active chats from other users. Those users lose the chat history.
-- Anyone with access to the server PC can open `config\chars.db` directly and read everything.
+- Anyone with access to the server PC can open `config\chars.db` and `config\pictures\` directly. Pictures are encrypted, but the key file is on the same PC.
 - Open sign-up lets anyone who can reach the server create an account. Turn it off in `settings.json` if the server is shared beyond your household.
 - Emails are not verified, and there is no password reset by email yet.
-- Display preferences, chat template and animation, and the admin panel's prototype data save only in the browser.
+- Display, chat template and animation, and the admin panel's prototype data save only in the browser until the server settings backend is built.
 - Daily limits count messages, not cost. Generate counts the same as a normal reply, but a long run of Generate presses can still use a lot of model time.
 - The prompt size warning is an estimate, using about four characters per token. A model with a larger real window may still handle a prompt the warning flags.
 - Long definitions and personalities can push older chat history out of small local models' context windows, without a warning from the model itself.
 - Some providers ignore parameters they don't support, so a parameter turned on can cause an error for that provider.
 - Save & resend removes the messages after the edited one. This is intentional, but it can't be undone.
 - Models sometimes write lines for the user even with the persona rule, especially smaller ones.
+- Models may still use an old name from earlier messages in a chat. The prompt asks them to use the current name, but this is not guaranteed.
+- Greetings already saved in older chats keep the name they were started with. Only new chats use the selected persona's name.
 - The maintenance page depends on the app being open: a user who keeps a chat open is switched within 15 seconds, not instantly.
 - Lockdown detection depends on the failed request's response. If the dev proxy returns an unusual error, the page may not appear until the next request.
 - The admin panel's accounts list, plans, and moderation tools are prototype data in the browser, and clearing browser data resets them.
 - `/api/models` is slow because it fetches from every provider on each call.
 - Sign-up and login attempts are limited per IP, so people behind the same router share one limit.
 - Models sometimes refuse or drift out of character. Persona prompt tuning is ongoing.
-- Greetings already saved in older chats keep their `{{user}}` text, since placeholders are filled only when a chat starts.
 - The character panel's icon for the chat bar on phones is a placeholder flag icon.
 - Some `500` errors after editing server files only clear with a server restart. Restart the server after any change under `apps\server` or `packages\core`.
-- The persona list in Settings has no picture yet, so personas show only their name and text.
