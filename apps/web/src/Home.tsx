@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type CharacterView, type Me } from "./api";
 import { Sidebar } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
+import { Avatar } from "./Avatar";
 
 interface HomeProps {
   me: Me;
@@ -34,9 +35,7 @@ function CharacterCard({
         if (e.key === "Enter") onOpen(c);
       }}
     >
-      <span className="avatar" style={avatarStyle(c.name)}>
-        {initials(c.name)}
-      </span>
+      <Avatar name={c.name} pictureId={c.avatarPath} className="avatar" />
       <div className="card-body">
         <h3>{c.name}</h3>
         <p>{c.description || "No description yet."}</p>

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { api, type CharacterView, type ChatInfo, type Me } from "./api";
 import { Icon } from "./Icons";
 import { avatarStyle, initials } from "./ui";
+import { Avatar } from "./Avatar";
 
 // A chat's label: its title, or the start date until the first message names it
 export function chatTitle(c: ChatInfo): string {
@@ -62,9 +63,7 @@ export function Sidebar({
     <aside className="sb">
       <div className="sb-panel">
         <div className="sb-user">
-          <span className="avatar avatar-sm" style={avatarStyle(me.displayName)}>
-            {initials(me.displayName)}
-          </span>
+          <Avatar name={me.displayName} pictureId={me.pictureId} className="avatar avatar-sm" />
           <div className="user-meta">
             <strong>{me.displayName}</strong>
             <span>@{me.username}</span>
@@ -99,9 +98,7 @@ export function Sidebar({
                 className={c.id === activeId ? "list-item active" : "list-item"}
                 onClick={() => onOpen(c)}
               >
-                <span className="avatar avatar-xs" style={avatarStyle(c.name)}>
-                  {initials(c.name)}
-                </span>
+                <Avatar name={c.name} pictureId={c.avatarPath} className="avatar avatar-xs" />
                 <span className="list-name">{c.name}</span>
               </button>
 

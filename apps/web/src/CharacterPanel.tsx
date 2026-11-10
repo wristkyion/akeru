@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { CharacterView } from "./api";
 import { Icon } from "./Icons";
-import { avatarStyle, initials } from "./ui";
+import { Avatar } from "./Avatar";
 
 export function CharacterPanel({
   character,
@@ -34,9 +34,11 @@ export function CharacterPanel({
   return (
     <aside className="cp">
       <div className="cp-profile">
-        <span className="avatar cp-avatar" style={avatarStyle(character.name)}>
-          {initials(character.name)}
-        </span>
+        <Avatar
+          name={character.name}
+          pictureId={character.avatarPath}
+          className="avatar cp-avatar"
+        />
         <div className="cp-meta">
           <h2>{character.name}</h2>
           <span className="muted small">By @{character.ownerName ?? "unknown"}</span>

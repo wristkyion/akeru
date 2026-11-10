@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { splitBubbles } from "./bubbles";
+import { Avatar } from "./Avatar";
 import { Formatted } from "./Markdown";
 import type { RevealMode } from "./reveal";
-import { avatarStyle, initials } from "./ui";
 
 const TICK_MS = 110; // time between reveal steps
 const BUBBLE_PAUSE_MS = 700; // pause before a new bubble starts
@@ -20,11 +20,13 @@ export function RevealRow({
   text,
   mode,
   onDone,
+  picId,
 }: {
   name: string;
   text: string;
   mode: RevealMode;
   onDone: () => void;
+  picId?: string | null;
 }) {
   const bubbles = useMemo(() => splitBubbles(text), [text]);
 
@@ -69,9 +71,7 @@ export function RevealRow({
 
   return (
     <div className="msg" ref={ref}>
-      <span className="avatar msg-avatar" style={avatarStyle(name)}>
-        {initials(name)}
-      </span>
+      <Avatar name={name} pictureId={picId} className="avatar msg-avatar" />
       <div className="msg-body">
         <div className="msg-name">
           <span>{name}</span>

@@ -3,11 +3,13 @@ import type { Message } from "./api";
 import { splitBubbles } from "./bubbles";
 import { Formatted } from "./Markdown";
 import { avatarStyle, initials } from "./ui";
+import { Avatar } from "./Avatar";
 
 interface MessageItemProps {
   message: Message;
   mine: boolean;
   name: string;
+  pictureId?: string | null;
   // Only the newest assistant reply can be refreshed
   canRefresh: boolean;
   disabled: boolean;
@@ -20,6 +22,7 @@ export function MessageItem({
   message,
   mine,
   name,
+  pictureId,
   canRefresh,
   disabled,
   onSave,
@@ -46,19 +49,13 @@ export function MessageItem({
 
   return (
     <div className={mine ? "msg msg-user" : "msg"}>
-      {!mine && (
-        <span className="avatar msg-avatar" style={avatarStyle(name)}>
-          {initials(name)}
-        </span>
-      )}
+      {!mine && <Avatar name={name} pictureId={pictureId} className="avatar msg-avatar" />}
       <div className="msg-body">
         <div className="msg-name">
           {mine ? (
             <>
               <span>{name}</span>
-              <span className="avatar avatar-xs" style={avatarStyle(name)}>
-                {initials(name)}
-              </span>
+              <Avatar name={name} pictureId={pictureId} className="avatar avatar-xs" />
             </>
           ) : (
             <>

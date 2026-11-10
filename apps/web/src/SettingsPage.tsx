@@ -1,8 +1,9 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { api, type Me, type Persona } from "./api";
 import { AdminPanel } from "./AdminPanel";
 import { loadSettings, SETTINGS_KEY, type ChatSettings } from "./ChatSettings";
 import { MAX_PERSONAS, loadPrefs, savePrefs, type Prefs } from "./prefs";
+import { api, deleteAccountPicture, uploadAccountPicture, type Me, type Persona } from "./api";
+import { Avatar } from "./Avatar";
 
 type Section = "admin" | "profile" | "account" | "chat" | "display" | "advanced";
 
@@ -106,6 +107,10 @@ export function SettingsPage({
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
 
+  // Account picture
+  const [picBusy, setPicBusy] = useState(false);
+  const [picErr, setPicErr] = useState("");
+
   // Personas come from the server, so they follow the account
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [personaMax, setPersonaMax] = useState(MAX_PERSONAS);
@@ -168,6 +173,37 @@ export function SettingsPage({
   }
 
   const profileChanged = displayName.trim() !== me.displayName || bio.trim() !== (me.bio ?? "");
+
+  // Reloads the account from the server, so the new picture shows everywhere
+  async function refreshMe() {
+    onProfileSaved(await api.me());
+  }
+
+  async function changePicture(file: File) {
+    setPicBusy(true);
+    setPicErr("");
+    try {
+      await uploadAccountPicture(file);
+      await refreshMe();
+    } catch (err) {
+      setPicErr(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setPicBusy(false);
+    }
+  }
+
+  async function removePicture() {
+    setPicBusy(true);
+    setPicErr("");
+    try {
+      await deleteAccountPicture();
+      await refreshMe();
+    } catch (err) {
+      setPicErr(err instanceof Error ? err.message : "Could not remove the picture.");
+    } finally {
+      setPicBusy(false);
+    }
+  }
 
   function resetPersonaForm() {
     setPName("");
@@ -245,6 +281,41 @@ export function SettingsPage({
 
             {section === "profile" && (
               <>
+                <section className="set-card">
+                  <h3>Profile picture</h3>
+                  <p className="muted small">
+                    Shown in chats and on your character cards, like your name. Optional. JPEG, PNG,
+                    or WebP, up to 2 MB.
+                  </p>
+                  <div className="pic-row">
+                    <Avatar name={me.displayName} pictureId={me.pictureId} className="avatar avatar-sm" />
+                    <label className="pill-btn">
+                      Choose picture
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        hidden
+                        disabled={picBusy}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) void changePicture(file);
+                        }}
+                      />
+                    </label>
+                    {me.pictureId && (
+                      <button
+                        className="pill-btn danger-text"
+                        disabled={picBusy}
+                        onClick={() => void removePicture()}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {picErr && <p className="error">{picErr}</p>}
+                </section>
+
                 <section className="set-card">
                   <h3>Your account</h3>
                   <p className="muted small">From the server. Only you can see this.</p>

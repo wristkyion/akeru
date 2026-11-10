@@ -632,3 +632,6 @@ html[data-shape="square"] .avatar-sm { border-radius: 12px; }
 }
 .info-row:last-child { border-bottom: 0; }
 .info-row > span:last-child { text-align: right; overflow-wrap: anywhere; }
+/* Avatars that show a picture: fill the same circle or square as the initials */
+.avatar-img { object-fit: cover; padding: 0; }
+.pic-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

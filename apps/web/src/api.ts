@@ -5,6 +5,7 @@ export interface Me {
   username: string;
   displayName: string;
   bio: string;
+  pictureId: string | null;
   persona: string;
   role: "admin" | "user";
   disabled: boolean;
@@ -426,3 +427,56 @@ export async function streamMessage(
 
   if (!saved) throw new ApiError("The reply was cut off. Your message was not saved.", 0);
 }
+
+// Uploads the account picture. The file goes as form data, so the Content-Type is left to the browser.
+export async function uploadAccountPicture(file: File): Promise<{ id: string; url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch("/api/me/picture", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  } catch {
+    throw new ApiError("Can't reach the server. Is it running?", 0);
+  }
+  const data = safeJson(await res.text());
+  if (!res.ok) {
+    throw new ApiError(extractError(data) ?? `Upload failed (${res.status})`, res.status);
+  }
+  return data as { id: string; url: string };
+}
+
+export const deleteAccountPicture = () =>
+  request<{ ok: boolean }>("/api/me/picture", { method: "DELETE" });
+
+// Uploads a character picture. Only the owner can do this, and the server checks that.
+export async function uploadCharacterPicture(
+  characterId: string,
+  file: File,
+): Promise<{ id: string; url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch(`/api/characters/${characterId}/picture`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  } catch {
+    throw new ApiError("Can't reach the server. Is it running?", 0);
+  }
+  const data = safeJson(await res.text());
+  if (!res.ok) {
+    throw new ApiError(extractError(data) ?? `Upload failed (${res.status})`, res.status);
+  }
+  return data as { id: string; url: string };
+}
+
+export const deleteCharacterPicture = (characterId: string) =>
+  request<{ ok: boolean }>(`/api/characters/${characterId}/picture`, { method: "DELETE" });

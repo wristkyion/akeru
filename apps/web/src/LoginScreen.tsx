@@ -58,11 +58,11 @@ export function LoginScreen({
       setError("Enter your username and password.");
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
-      setError("Enter a valid email address.");
-      return;
-    }
     if (isSignup) {
+      if (!email.trim() || !email.includes("@")) {
+        setError("Enter a valid email address.");
+        return;
+      }
       if (password.length < 8) {
         setError("Password must be at least 8 characters.");
         return;

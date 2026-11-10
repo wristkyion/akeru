@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError, type CharacterInput, type CharacterView } from "./api";
+import {
+  api,
+  ApiError,
+  deleteCharacterPicture,
+  uploadCharacterPicture,
+  type CharacterInput,
+  type CharacterView,
+} from "./api";
+import { Avatar } from "./Avatar";
 import { DeleteDialog } from "./DeleteDialog";
 
 interface CharacterFormProps {
@@ -34,6 +42,39 @@ export function CharacterForm({ existing, onSaved, onCancel, onDeleted }: Charac
   const [showDelete, setShowDelete] = useState(false);
 
   const tagPreview = parseTagText(tagText);
+
+  // The character's picture id. It's set from the saved character, then updated by upload or remove.
+  const [picId, setPicId] = useState<string | null>(existing?.avatarPath ?? null);
+  const [picBusy, setPicBusy] = useState(false);
+  const [picErr, setPicErr] = useState("");
+
+  async function changePic(file: File) {
+    if (!existing) return;
+    setPicBusy(true);
+    setPicErr("");
+    try {
+      const r = await uploadCharacterPicture(existing.id, file);
+      setPicId(r.id);
+    } catch (err) {
+      setPicErr(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setPicBusy(false);
+    }
+  }
+
+  async function removePic() {
+    if (!existing) return;
+    setPicBusy(true);
+    setPicErr("");
+    try {
+      await deleteCharacterPicture(existing.id);
+      setPicId(null);
+    } catch (err) {
+      setPicErr(err instanceof Error ? err.message : "Could not remove the picture.");
+    } finally {
+      setPicBusy(false);
+    }
+  }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -86,6 +127,45 @@ export function CharacterForm({ existing, onSaved, onCancel, onDeleted }: Charac
             onChange={(e) => setName(e.target.value)}
           />
         </label>
+
+        <section className="set-card full">
+          <h3>Character picture</h3>
+          <p className="muted small">
+            Shown on the card and in the chat panel. JPEG, PNG, or WebP, up to 2 MB.
+          </p>
+          {existing ? (
+            <div className="pic-row">
+              <Avatar name={name || existing.name} pictureId={picId} className="avatar avatar-sm" />
+              <label className="pill-btn">
+                Choose picture
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  disabled={picBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void changePic(file);
+                  }}
+                />
+              </label>
+              {picId && (
+                <button
+                  type="button"
+                  className="pill-btn danger-text"
+                  disabled={picBusy}
+                  onClick={() => void removePic()}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="muted small">Save the character first, then add a picture.</p>
+          )}
+          {picErr && <p className="error">{picErr}</p>}
+        </section>
 
         <label className="field">
           <span>Visibility</span>

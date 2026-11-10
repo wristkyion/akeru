@@ -21,6 +21,7 @@ import { RevealRow } from "./RevealRow";
 import type { RevealMode } from "./reveal";
 import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
+import { Avatar } from "./Avatar";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
 
@@ -60,7 +61,7 @@ function GenerateIcon() {
   );
 }
 
-function MessageRow({ mine, name, text, sending }: { mine: boolean; name: string; text: string; sending?: boolean }) {
+function MessageRow({ mine, name, text, sending, picId }: { mine: boolean; name: string; text: string; sending?: boolean; picId?: string | null }) {
   return (
     <div className={mine ? "msg msg-user" : "msg"}>
       {!mine && (
@@ -74,9 +75,7 @@ function MessageRow({ mine, name, text, sending }: { mine: boolean; name: string
             <>
               {sending && <span className="muted small">sending…</span>}
               <span>{name}</span>
-              <span className="avatar avatar-xs" style={avatarStyle(name)}>
-                {initials(name)}
-              </span>
+              <Avatar name={name} pictureId={picId} className="avatar avatar-xs" />
             </>
           ) : (
             <>
@@ -93,12 +92,10 @@ function MessageRow({ mine, name, text, sending }: { mine: boolean; name: string
   );
 }
 
-function TypingRow({ name }: { name: string }) {
+function TypingRow({ name, picId }: { name: string; picId?: string | null }) {
   return (
     <div className="msg">
-      <span className="avatar msg-avatar" style={avatarStyle(name)}>
-        {initials(name)}
-      </span>
+      <Avatar name={name} pictureId={picId} className="avatar msg-avatar" />
       <div className="msg-body">
         <div className="msg-name">
           <span>{name}</span>
@@ -615,7 +612,7 @@ export function ChatScreen({
             {rows.map((m, i) => {
               // The message being refreshed shows the typing dots until its new text is ready
               if (m.id === refreshingId) {
-                return <TypingRow key={m.id} name={character.name} />;
+                return <TypingRow key={m.id} name={character.name} picId={character.avatarPath} />;
               }
 
               // The reply being revealed, bubble by bubble
@@ -626,6 +623,7 @@ export function ChatScreen({
                     name={character.name}
                     text={revealing.text}
                     mode={revealing.mode}
+                    picId={character.avatarPath}
                     onDone={() => setRevealing(null)}
                   />
                 );
@@ -638,6 +636,7 @@ export function ChatScreen({
                   key={m.id}
                   message={m}
                   mine={m.role === "user"}
+                  pictureId={m.role === "user" ? me.pictureId : character.avatarPath}
                   name={m.role === "user" ? me.displayName : character.name}
                   canRefresh={newest && m.role === "assistant" && answersAUserMessage}
                   disabled={busy}
@@ -650,11 +649,11 @@ export function ChatScreen({
 
             {pending && (
               <>
-                <MessageRow mine name={me.displayName} text={pending} sending />
-                <TypingRow name={character.name} />
+                <MessageRow mine name={me.displayName} text={pending} sending picId={me.pictureId} />
+                <TypingRow name={character.name} picId={character.avatarPath} />
               </>
             )}
-            {(working || generating) && <TypingRow name={character.name} />}
+            {(working || generating) && <TypingRow name={character.name} picId={character.avatarPath} />}
             <div ref={endRef} />
           </div>
         </main>
