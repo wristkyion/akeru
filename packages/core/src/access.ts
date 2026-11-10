@@ -10,6 +10,7 @@ import {
   type CharacterInput,
 } from "./characters.js";
 import { createChat, deleteChat, type Chat } from "./chats.js";
+import { getSelectedPersona } from "./personas.js";
 
 export type Visibility = "public" | "private";
 
@@ -209,16 +210,18 @@ export function assertCanSend(db: DB, user: User, chatId: string): Chat {
   return chat;
 }
 
-// Starts a chat and saves the greeting with {{char}} and {{user}} filled in
+// Starts a chat and saves the greeting with {{char}} and {{user}} filled in.
+// {{user}} is the selected persona's name when there is one, otherwise the display name.
 export function startOwnedChat(db: DB, user: User, characterId: string): Chat {
   const character = getVisibleCharacter(db, user, characterId);
   if (!character?.canChat) throw new Error("character not found");
 
   const chat = createOwnedChat(db, user, characterId);
   if (character.greeting) {
+    const selected = getSelectedPersona(db, user.id);
     const text = fillPlaceholders(character.greeting, {
       char: character.name,
-      user: user.displayName,
+      user: selected?.name || user.displayName,
     });
     addMessage(db, chat.id, "assistant", text);
   }

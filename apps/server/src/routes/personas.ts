@@ -6,6 +6,7 @@ import {
   deletePersona,
   listPersonas,
   selectPersona,
+  unselectPersona,
   updatePersona,
   type User,
 } from "@chars/core";
@@ -57,6 +58,15 @@ export async function personaRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post<{ Params: { id: string } }>("/api/personas/:id/select", async (req, reply) => {
     try {
       return selectPersona(ctx.db, (req.actor as User).id, req.params.id);
+    } catch (err) {
+      return personaError(reply, err);
+    }
+  });
+
+  // Clear the selection, so no persona is used
+  app.post<{ Params: { id: string } }>("/api/personas/:id/unselect", async (req, reply) => {
+    try {
+      return unselectPersona(ctx.db, (req.actor as User).id, req.params.id);
     } catch (err) {
       return personaError(reply, err);
     }

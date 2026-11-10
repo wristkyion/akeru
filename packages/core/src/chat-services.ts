@@ -18,7 +18,7 @@ export function systemPrompt(c: Character, user?: UserProfile): string {
     c.description && `Who you are: ${fill(c.description)}`,
     c.definition && `Background and details about you:\n${fill(c.definition)}`,
     c.personality && `How you speak and act: ${fill(c.personality)}`,
-    user && `You are talking with ${user.name}.`,
+    user && `You are talking with ${user.name}. Always call them ${user.name}, even if earlier messages in this chat used a different name.`,
     user?.persona && `About ${user.name}: ${fill(user.persona)}`,
     `Reply as ${c.name} would, in first person, with natural dialogue. Use *asterisks* for short actions when they fit.`,
     "Keep replies conversational and a natural length. React to what the user just said and remember earlier messages.",

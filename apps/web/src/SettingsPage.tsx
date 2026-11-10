@@ -2,7 +2,15 @@ import { useState, useEffect, type ReactNode } from "react";
 import { AdminPanel } from "./AdminPanel";
 import { loadSettings, SETTINGS_KEY, type ChatSettings } from "./ChatSettings";
 import { MAX_PERSONAS, loadPrefs, savePrefs, type Prefs } from "./prefs";
-import { api, deleteAccountPicture, uploadAccountPicture, type Me, type Persona } from "./api";
+import {
+  api,
+  deleteAccountPicture,
+  deletePersonaPicture,
+  uploadAccountPicture,
+  uploadPersonaPicture,
+  type Me,
+  type Persona,
+} from "./api";
 import { Avatar } from "./Avatar";
 
 type Section = "admin" | "profile" | "account" | "chat" | "display" | "advanced";
@@ -209,6 +217,33 @@ export function SettingsPage({
     setPName("");
     setPText("");
     setEditingId(null);
+  }
+
+  // Persona picture: upload or remove for one persona, then reload the list
+  async function changePersonaPicture(p: Persona, file: File) {
+    setPersonaBusy(true);
+    setPersonaErr("");
+    try {
+      await uploadPersonaPicture(p.id, file);
+      loadPersonas();
+    } catch (err) {
+      setPersonaErr(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setPersonaBusy(false);
+    }
+  }
+
+  async function removePersonaPicture(p: Persona) {
+    setPersonaBusy(true);
+    setPersonaErr("");
+    try {
+      await deletePersonaPicture(p.id);
+      loadPersonas();
+    } catch (err) {
+      setPersonaErr(err instanceof Error ? err.message : "Could not remove the picture.");
+    } finally {
+      setPersonaBusy(false);
+    }
   }
 
   // Runs one change on the server, then reloads the list
@@ -455,12 +490,36 @@ export function SettingsPage({
                   {personas.map((p) => (
                     <div key={p.id} className="persona">
                       <div className="persona-text">
+                      <Avatar name={p.name} pictureId={p.pictureId} className="avatar avatar-sm" />
                         <strong>
                           {p.name} {p.selected && <span className="badge">Selected</span>}
                         </strong>
                         <span className="muted small">{p.personality}</span>
                       </div>
                       <div className="row-actions">
+                        <label className="tool-btn">
+                          Picture
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            hidden
+                            disabled={personaBusy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) void changePersonaPicture(p, file);
+                            }}
+                          />
+                        </label>
+                        {p.pictureId && (
+                          <button
+                            className="tool-btn danger-text"
+                            disabled={personaBusy}
+                            onClick={() => void removePersonaPicture(p)}
+                          >
+                            Remove picture
+                          </button>
+                        )}
                         {!p.selected && (
                           <button
                             className="tool-btn"
@@ -468,6 +527,15 @@ export function SettingsPage({
                             onClick={() => void runPersona(() => api.selectPersona(p.id))}
                           >
                             Select
+                          </button>
+                        )}
+                        {p.selected && (
+                          <button
+                            className="tool-btn"
+                            disabled={personaBusy}
+                            onClick={() => void runPersona(() => api.unselectPersona(p.id))}
+                          >
+                            Unselect
                           </button>
                         )}
                         <button

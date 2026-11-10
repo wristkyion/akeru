@@ -9,7 +9,7 @@ export interface Persona {
   id: string;
   name: string;
   personality: string;
-  pictureUrl: string | null;
+  pictureId: string | null;
   selected: boolean;
   createdAt: number;
 }
@@ -27,7 +27,7 @@ const toPersona = (r: PersonaRow): Persona => ({
   id: r.id,
   name: r.name,
   personality: r.personality,
-  pictureUrl: r.picture_path ? `/api/pictures/${r.picture_path}` : null,
+  pictureId: r.picture_path ?? null,
   selected: r.is_selected === 1,
   createdAt: r.created_at,
 });
@@ -153,5 +153,12 @@ export function promptProfileFor(
 ): { name: string; persona: string } {
   const selected = getSelectedPersona(db, user.id);
   const text = selected?.personality || user.persona || user.bio || "";
-  return { name: user.displayName, persona: text };
+  // The selected persona's name is what characters call you. Without one, use the display name.
+  return { name: selected?.name || user.displayName, persona: text };
+}
+// Clears the selection, so no persona is used. Chats then use the account's own name and bio.
+export function unselectPersona(db: DB, userId: string, personaId: string): Persona {
+  ownPersonaRow(db, userId, personaId);
+  db.prepare("UPDATE personas SET is_selected = 0 WHERE id = ? AND user_id = ?").run(personaId, userId);
+  return toPersona(ownPersonaRow(db, userId, personaId));
 }

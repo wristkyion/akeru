@@ -10,6 +10,7 @@ import {
   type Message,
   type Usage,
 } from "./api";
+import { Avatar } from "./Avatar";
 import { CharacterPanel } from "./CharacterPanel";
 import { SETTINGS_KEY, loadSettings, sendableParams, type ChatSettings } from "./ChatSettings";
 import { DeleteDialog } from "./DeleteDialog";
@@ -21,7 +22,6 @@ import { RevealRow } from "./RevealRow";
 import type { RevealMode } from "./reveal";
 import { Sidebar, chatTitle } from "./Sidebar";
 import { avatarStyle, initials } from "./ui";
-import { Avatar } from "./Avatar";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong.");
 
@@ -61,14 +61,22 @@ function GenerateIcon() {
   );
 }
 
-function MessageRow({ mine, name, text, sending, picId }: { mine: boolean; name: string; text: string; sending?: boolean; picId?: string | null }) {
+function MessageRow({
+  mine,
+  name,
+  text,
+  sending,
+  picId,
+}: {
+  mine: boolean;
+  name: string;
+  text: string;
+  sending?: boolean;
+  picId?: string | null;
+}) {
   return (
     <div className={mine ? "msg msg-user" : "msg"}>
-      {!mine && (
-        <span className="avatar msg-avatar" style={avatarStyle(name)}>
-          {initials(name)}
-        </span>
-      )}
+      {!mine && <Avatar name={name} pictureId={picId} className="avatar msg-avatar" />}
       <div className="msg-body">
         <div className="msg-name">
           {mine ? (
@@ -158,6 +166,11 @@ export function ChatScreen({
   const [lastText, setLastText] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // The selected persona's picture, or null. Your bubbles use it, falling back to your account picture.
+  const [personaPicId, setPersonaPicId] = useState<string | null>(null);
+  const [personaName, setPersonaName] = useState<string | null>(null);
+  const myPicId = personaPicId ?? me.pictureId;
+  const myName = personaName ?? me.displayName;
 
   const started = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -187,6 +200,22 @@ export function ChatScreen({
     const mode = loadPrefs().chat.animation;
     if (mode === "instant") return;
     setRevealing({ id, text, mode });
+  }
+
+  // Loads the selected persona's picture, so your bubbles show it
+  // Loads the selected persona's picture and name, so your bubbles show them
+  function loadPersonaPic() {
+    api
+      .personas()
+      .then((r) => {
+        const selected = r.personas.find((p) => p.selected);
+        setPersonaPicId(selected?.pictureId ?? null);
+        setPersonaName(selected?.name ?? null);
+      })
+      .catch(() => {
+        setPersonaPicId(null);
+        setPersonaName(null);
+      });
   }
 
   // Load this character's chats once. Opens the chat from the address if it's one of ours.
@@ -230,6 +259,7 @@ export function ChatScreen({
     }
   }, [chatIdFromUrl]);
 
+  // Models, policy, usage, and the selected persona's picture
   useEffect(() => {
     api
       .models()
@@ -237,6 +267,7 @@ export function ChatScreen({
       .catch(() => setModels([]));
     api.getPolicy().then(setPolicy).catch(() => setPolicy(null));
     api.usage().then(setUsage).catch(() => setUsage(null));
+    loadPersonaPic();
   }, []);
 
   useEffect(() => {
@@ -276,7 +307,7 @@ export function ChatScreen({
     setDrawer(null);
   }, [character.id]);
 
-  // Reloads messages, usage, and the chat list, so titles and order stay current
+  // Reloads messages, usage, the chat list, and the persona picture, so changes show up
   async function refresh(id: string) {
     const [msgs, u, list] = await Promise.all([
       api.messages(id),
@@ -286,6 +317,7 @@ export function ChatScreen({
     setMessages(msgs);
     setUsage(u);
     setChats(list);
+    loadPersonaPic();
   }
 
   // The model and settings every model-backed action sends
@@ -623,8 +655,8 @@ export function ChatScreen({
                     name={character.name}
                     text={revealing.text}
                     mode={revealing.mode}
-                    picId={character.avatarPath}
                     onDone={() => setRevealing(null)}
+                    picId={character.avatarPath}
                   />
                 );
               }
@@ -636,8 +668,8 @@ export function ChatScreen({
                   key={m.id}
                   message={m}
                   mine={m.role === "user"}
-                  pictureId={m.role === "user" ? me.pictureId : character.avatarPath}
-                  name={m.role === "user" ? me.displayName : character.name}
+                    name={m.role === "user" ? myName : character.name}
+                  pictureId={m.role === "user" ? myPicId : character.avatarPath}
                   canRefresh={newest && m.role === "assistant" && answersAUserMessage}
                   disabled={busy}
                   onSave={saveEdit}
@@ -649,7 +681,7 @@ export function ChatScreen({
 
             {pending && (
               <>
-                <MessageRow mine name={me.displayName} text={pending} sending picId={me.pictureId} />
+                  <MessageRow mine name={myName} text={pending} sending picId={myPicId} />
                 <TypingRow name={character.name} picId={character.avatarPath} />
               </>
             )}

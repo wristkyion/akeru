@@ -109,7 +109,7 @@ export interface Persona {
   id: string;
   name: string;
   personality: string;
-  pictureUrl: string | null;
+  pictureId: string | null;
   selected: boolean;
   createdAt: number;
 }
@@ -293,6 +293,8 @@ export const api = {
     request<Persona>(`/api/personas/${id}`, { method: "PUT", body: { name, personality } }),
   selectPersona: (id: string) =>
     request<Persona>(`/api/personas/${id}/select`, { method: "POST" }),
+  unselectPersona: (id: string) =>
+    request<Persona>(`/api/personas/${id}/unselect`, { method: "POST" }),
   deletePersona: (id: string) =>
     request<{ ok: boolean }>(`/api/personas/${id}`, { method: "DELETE" }),
   saveProfile: (displayName: string, bio: string) =>
@@ -480,3 +482,26 @@ export async function uploadCharacterPicture(
 
 export const deleteCharacterPicture = (characterId: string) =>
   request<{ ok: boolean }>(`/api/characters/${characterId}/picture`, { method: "DELETE" });
+
+// Uploads or removes a persona's picture. Only the persona's owner can do this.
+export async function uploadPersonaPicture(personaId: string, file: File): Promise<{ id: string; url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch(`/api/personas/${personaId}/picture`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  } catch {
+    throw new ApiError("Can't reach the server. Is it running?", 0);
+  }
+  const data = safeJson(await res.text());
+  if (!res.ok) throw new ApiError(extractError(data) ?? `Upload failed (${res.status})`, res.status);
+  return data as { id: string; url: string };
+}
+
+export const deletePersonaPicture = (personaId: string) =>
+  request<{ ok: boolean }>(`/api/personas/${personaId}/picture`, { method: "DELETE" });
