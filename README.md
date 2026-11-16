@@ -2,6 +2,16 @@
 
 A local, self-hosted character chat app, similar to Character.AI. Run it on your own PC, create characters, and chat with them using local models (llama.cpp, Ollama, LM Studio) or API providers (9router, and any other OpenAI-compatible endpoint). Several people can share one server, each with private chats and their own profile.
 
+> This repo contains NSFW elements if the models ai do not censor them.
+
+<div align="center">
+
+Total wiew repository
+  
+![Visitors](https://count.getloli.com/@akeru?theme=gelbooru-h&padding=6&offset=-9&align=top&scale=1&pixelated=1&darkmode=auto)
+
+</div> 
+
 ## Features
 
 - **Characters** with name, description, definition, personality, greeting, and tags. Each character gets its own persona in every request.
